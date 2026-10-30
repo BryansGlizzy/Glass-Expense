@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: inline-flex;
+  width: max-content;
+  animation: marquee 6s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-[#1c172d]/60 backdrop-blur-2xl border border-white/5 rounded-3xl;
+  }
+  
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl transition-all hover:bg-white/10 hover:border-white/20;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-report-area, #printable-report-area *,
+  #printable-tax-area, #printable-tax-area * {
+    visibility: visible;
+  }
+  #printable-report-area, #printable-tax-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 1.5rem !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    overflow: visible !important;
+    max-height: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  #printable-tax-area table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+  #printable-tax-area tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  #printable-tax-area th, #printable-tax-area td {
+    color: #111827 !important;
+    border-color: #e5e7eb !important;
+  }
+  #printable-tax-area div, #printable-tax-area span, #printable-tax-area p, #printable-tax-area h1, #printable-tax-area h2, #printable-tax-area h3, #printable-tax-area h4 {
+    color: #111827 !important;
+  }
+  #printable-tax-area .print-muted {
+    color: #4b5563 !important;
+  }
+  #printable-tax-area .print-card {
+    background: #f9fafb !important;
+    border: 1px solid #e5e7eb !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+

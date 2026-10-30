@@ -1,0 +1,9 @@
+{
+  "decrypt_part": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "wrap_key_hex": "0e3a64b1b5e093c59d1022dcea8c271bc3f5bd655d844016c3413dd3bdff33fc",
+  "calendar_key_hex": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedecebeae9e8e7e6e5e4e3e2e1e0",
+  "job_id": "11111111-2222-4333-8444-555555555555",
+  "title": "Smith Kitchen – Phase 1",
+  "wrapped_calendar_key": "v2.AQEBAQEBAQEBAQEBBrzpki/TtjLPhLXI4gw4fOggOGiHBYKqHuT7ss33e5afip5Ua0shT08YkZZSgEoi",
+  "title_envelope": "v2.AgICAgICAgICAgICmOUbyMO9flzVtFMR1PkeclRi2SeaJo5M8tf3t6dIW9QgNsO2W5rPul+Stg=="
+}

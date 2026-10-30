@@ -1,0 +1,24 @@
+# docker compose up -d --build
+# Create .env from .env.example first (JWT_SECRET and APP_URL are required). Put the Firebase service-account key at
+# ./secrets/firebase-adminsdk.json if you use push notifications (optional).
+services:
+  glassexpense:
+    build: .
+    image: glassexpense:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATA_DIR: /data
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/secrets/firebase-adminsdk.json
+    ports:
+      - "127.0.0.1:3000:3000"   # put a TLS reverse proxy (nginx/Caddy) in front; allow bodies >= 16 MB and WebSockets
+    volumes:
+      - glassexpense-data:/data
+      - ./secrets:/app/secrets:ro
+    # Run exactly ONE instance: the hourly schedulers are in-process.
+
+volumes:
+  glassexpense-data:
