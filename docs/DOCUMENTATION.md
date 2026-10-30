@@ -567,6 +567,23 @@ npm start          # production server only (requires a prior `npm run build`)
 npm run admin:promote -- you@example.com
 ```
 
+### Running with Docker
+The repository ships a multi-stage `Dockerfile` (build stage compiles the frontend; the runtime stage is non-root and contains no compilers, `.env`, secrets or data), a `docker-compose.yml` and a `.dockerignore`. The published image is `futurelabz/glass-expense`.
+
+| Setting | In the container |
+|---|---|
+| Data directory | `DATA_DIR=/data` (a volume: database, `uploads/`, `updates/`) |
+| Listen address | `HOST=0.0.0.0`, `PORT=3000` (compose publishes it on `127.0.0.1:3000` only; put a TLS proxy in front) |
+| Configuration | `--env-file .env` (same variables as above; `JWT_SECRET` and `APP_URL` are required) |
+| Firebase key | mount `./secrets` at `/app/secrets` (read-only) or set `FIREBASE_SERVICE_ACCOUNT_PATH` |
+| Health check | `GET /api/info` |
+
+```bash
+docker compose up -d --build
+docker exec -it <container> node_modules/.bin/tsx scripts/promote-admin.ts you@example.com
+```
+See the README "Docker" section for the plain `docker run` form, upgrades and publishing. Keep exactly one container running.
+
 ### Upgrading an existing deployment to this layout
 1. Stop the app and take a backup of the project directory.
 2. Move runtime files: `data.db` → `data/data.db`, `uploads/` → `data/uploads/`, `updates/` → `data/updates/`; the Firebase JSON → `secrets/firebase-adminsdk.json` (or set `FIREBASE_SERVICE_ACCOUNT_PATH`). Alternatively set `DATA_DIR` to the existing location.

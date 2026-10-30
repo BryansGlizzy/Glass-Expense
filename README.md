@@ -27,6 +27,34 @@ npm run serve                 # builds the frontend, then starts the server (NOD
 
 The server **refuses to start in production** if `JWT_SECRET` is missing, shorter than 32 characters, or a known placeholder. Anything other than `NODE_ENV=development` runs in production mode, so the Vite dev server (which can expose project files) is never started by accident.
 
+## Docker
+
+A prebuilt image is published as **`futurelabz/glass-expense`** (tags: `2.0.0`, `latest`), or build it yourself from this repo. The image contains the built web app and the server; **secrets and data are never baked in**: you pass them at run time.
+
+```bash
+cp .env.example .env              # set JWT_SECRET (openssl rand -base64 64) and APP_URL at minimum
+mkdir -p secrets                  # optional: secrets/firebase-adminsdk.json for push notifications
+
+# Option A: docker compose (builds locally; to use the published image instead, replace `build: .` with `image: futurelabz/glass-expense:2.0.0`)
+docker compose up -d --build
+
+# Option B: plain docker with the published image
+docker run -d --name glassexpense --restart unless-stopped \
+  -p 127.0.0.1:3000:3000 \
+  --env-file .env \
+  -v glassexpense-data:/data \
+  -v "$PWD/secrets:/app/secrets:ro" \
+  futurelabz/glass-expense:2.0.0
+```
+
+- **Data** lives in the `/data` volume (database, receipts, OTA bundles). Back the volume up as a whole; never expose it.
+- **Required:** `JWT_SECRET` (≥ 32 chars) and `APP_URL` (your public https origin). The container exits at boot otherwise. Optional features (`SERVER_WRAP_KEY` for agent access / report figures / background Google sync, SMTP, Google OAuth) are set in the same `.env`.
+- Put a TLS reverse proxy in front; allow request bodies ≥ 16 MB and WebSockets, and keep `TRUST_PROXY` equal to the number of proxy hops. Run **one** container (the hourly schedulers are in-process).
+- Health: `GET /api/info` (the image has a built-in `HEALTHCHECK`). Logs: `docker logs -f glassexpense`.
+- Promote an admin: `docker exec -it glassexpense node_modules/.bin/tsx scripts/promote-admin.ts you@example.com`.
+- Upgrade: `docker compose pull && docker compose up -d` (or re-run with the new tag). The database migrates itself on start; take a backup of the volume first.
+- Build and publish your own: `docker build -t futurelabz/glass-expense:2.0.0 -t futurelabz/glass-expense:latest .` then `docker push futurelabz/glass-expense:2.0.0 && docker push futurelabz/glass-expense:latest`.
+
 ## Scripts
 
 | Script | What it does |
