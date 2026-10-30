@@ -21,14 +21,17 @@ import { formatInvoiceNumber, parseInvoiceSequence } from '../../src/utils/invoi
  *   POST /jobs                     create a job                              (write access)
  *   GET  /jobs/:id/expenses        entries of a job (filters: from, to, type, limit, offset)
  *   POST /jobs/:id/expenses        add one entry, or {items:[...]} up to 100  (write access)
+ *   POST /jobs/:id/description     append text to a job's description         (write access; never overwrites)
  *
- * Not available to agents: deleting or editing anything, receipts, tags, tax data, sharing, account settings.
+ * Not available to agents: deleting anything, editing existing values (only appending to a description), receipts, tags,
+ * tax data, sharing, account settings.
  */
 
 interface Agent { keyId: string; scope: AgentScope; jobKeys: Map<string, Buffer>; calendarKey: Buffer; inbox: Buffer }
 
 const MAX_BATCH = 100;
 const MAX_AMOUNT = 1_000_000_000;
+const MAX_DESCRIPTION = 100_000;
 
 const agentLimiter = rateLimit({
   windowMs: 60_000,
@@ -172,7 +175,7 @@ export function registerAgentRoutes(app: Express, io: Server) {
       const start = isoDate(b.start_date, 'start_date'), end = isoDate(b.end_date, 'end_date');
 
       const blob: JobBlob = {
-        ...emptyJob(), title, description: str(b.description, 'description', { max: 100000 }), mode: b.mode === 'budget' ? 'budget' : 'expense',
+        ...emptyJob(), title, description: str(b.description, 'description', { max: MAX_DESCRIPTION }), mode: b.mode === 'budget' ? 'budget' : 'expense',
         client_name: str(b.client_name, 'client_name', { max: 200 }), client_address: str(b.client_address, 'client_address', { max: 500 }),
         client_email: str(b.client_email, 'client_email', { max: 254 }), job_rate: rate, invoice_notes: str(b.invoice_notes, 'invoice_notes', { max: 5000 }), invoice_tag: tag,
       };
@@ -213,6 +216,38 @@ export function registerAgentRoutes(app: Express, io: Server) {
       a.jobKeys.set(id, jobKey);
       void syncJobToGoogle(req.user.id, id).catch(() => {});
       res.status(201).json(jobView(readJobRow(req.user.id, id)[0], jobKey));
+    } catch (err) { fail(res, err); }
+  });
+
+  // Append-only on purpose: an agent can add findings to a job but can never overwrite or erase what the owner wrote.
+  app.post(`${base}/jobs/:id/description`, ...guard, requireWrite, (req: any, res) => {
+    try {
+      const a = req.agent as Agent;
+      const jobId = req.params.id;
+      const key = a.jobKeys.get(jobId);
+      const access = key ? getJobAccess(jobId, req.user.id) : null;
+      if (!key || !access) return res.status(404).json({ error: 'Job not found' });
+      // Members hold the owner's job blob only as a guest; rewriting it is the owner's call.
+      if (!access.isOwner) return res.status(403).json({ error: 'Text can only be appended to jobs owned by the key\'s account.' });
+      const addition = str(req.body?.append, 'append', { required: true, max: MAX_DESCRIPTION })!;
+
+      const row = readJobRow(req.user.id, jobId)[0];
+      let blob: JobBlob;
+      try { blob = { ...emptyJob(), ...decryptEnvelopeServer<JobBlob>(key, row.enc, `job|${jobId}`) }; }
+      catch { return res.status(404).json({ error: 'Job not found' }); }
+
+      // Retrying the same text is safe: it is not appended twice.
+      const current = blob.description ?? '';
+      const duplicate = current.includes(addition);
+      if (!duplicate) {
+        const next = current ? `${current}\n\n${addition}` : addition;
+        if (next.length > MAX_DESCRIPTION) throw new ValidationError(`description would exceed ${MAX_DESCRIPTION} characters`);
+        blob.description = next;
+        const enc = encryptEnvelopeServer(key, blob, `job|${jobId}`);
+        db.prepare('UPDATE jobs SET enc = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(enc, jobId);
+        io.to(jobId).emit('job_updated', { id: jobId, enc, start_date: row.start_date, end_date: row.end_date });
+      }
+      res.status(duplicate ? 200 : 201).json({ ...jobView(readJobRow(req.user.id, jobId)[0], key), duplicate });
     } catch (err) { fail(res, err); }
   });
 

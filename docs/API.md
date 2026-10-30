@@ -318,11 +318,11 @@ Consequences you accept:
 
 | Risk | Impact |
 |---|---|
-| The API key leaks | Anyone holding it can read the covered jobs (and with write access add entries / create jobs) until you revoke it. It is a bearer secret. |
+| The API key leaks | Anyone holding it can read the covered jobs (and with write access add entries, create jobs or append text to job descriptions) until you revoke it. It is a bearer secret. |
 | Database **and** `SERVER_WRAP_KEY` are both compromised | The covered jobs can be decrypted. Other jobs, your password, recovery phrase, tax data, W-2s and AI provider key are never shared. |
 | An agent forwards what it reads | Data goes wherever the agent sends it (for example to an AI provider). |
 
-Not available to agents: editing or deleting anything, receipts, tags, tax data, sharing/invites, account settings. Keys without agent access, and ordinary sessions, get `403`.
+Not available to agents: deleting anything, changing or removing existing values (the one edit allowed is *appending* to a job description, below), receipts, tags, tax data, sharing/invites, account settings. Keys without agent access, and ordinary sessions, get `403`.
 
 Send **only the part before the dot** in `x-api-key`, exactly like the calendar endpoint. Limit: 120 requests/minute per key.
 
@@ -335,6 +335,7 @@ Send **only the part before the dot** in `x-api-key`, exactly like the calendar 
 | `GET /api/agent/v1/jobs/:id` | read | One job |
 | `POST /api/agent/v1/jobs` | write | Create a job. Body: `title` (required), `description`, `mode` (`expense`\|`budget`), `client_name`, `client_address`, `client_email`, `job_rate`, `invoice_notes`, `invoice_tag`, `start_date`, `end_date` (YYYY-MM-DD). Returns `201` with the job |
 | `GET /api/agent/v1/jobs/:id/expenses?from=&to=&type=&limit=&offset=` | read | `{total, limit, offset, items:[{id, amount, description, entry_type, date, added_by, created_at, has_receipt}]}` (limit max 1000) |
+| `POST /api/agent/v1/jobs/:id/description` | write | Append text to a job's description. Body `{append: "…"}` (required, non-empty, max 100 000 characters in total). The text is added after the existing description, separated by a blank line; nothing already there is changed or removed. Only for jobs owned by the key's account. Retrying the same text is safe: if it is already present the response is `200` with `duplicate: true`. Returns the job (`201`, or `200` for a duplicate) |
 | `POST /api/agent/v1/jobs/:id/expenses` | write | Add one entry `{amount, description?, entry_type?: "expense"\|"income", date?, id?}` or `{items:[...]}` (max 100). `amount` must be positive; `date` defaults to today; `id` (UUID) makes retries idempotent (`200` + `duplicate: true`) |
 
 ```bash

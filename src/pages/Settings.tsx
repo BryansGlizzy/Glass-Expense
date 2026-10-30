@@ -1681,10 +1681,10 @@ export default function Settings() {
                             <p>GlassExpense normally cannot read your data: everything is encrypted in your browser. Agent access <strong>weakens that on purpose</strong> for the jobs you select below:</p>
                             <ul className="list-disc pl-5 space-y-1">
                               <li>Your browser gives <strong>our server the decryption keys</strong> for the selected jobs. The server stores them (encrypted with a server secret) for as long as this key exists, and can read those jobs&apos; titles, clients, amounts and descriptions.</li>
-                              <li><strong>If this API key leaks</strong>, anyone holding it can read those jobs{agentAccess === 'write' ? ' and add entries or create jobs in your account' : ''} until you revoke it. The key is a bearer secret: no password is needed.</li>
+                              <li><strong>If this API key leaks</strong>, anyone holding it can read those jobs{agentAccess === 'write' ? ' and add entries, create jobs or append text to job descriptions in your account' : ''} until you revoke it. The key is a bearer secret: no password is needed.</li>
                               <li><strong>If the server&apos;s database and its server secret are both compromised</strong>, the selected jobs can be read. Jobs you do not select are not affected, and your password, recovery phrase, tax data and AI provider key are never shared.</li>
                               <li>Anything an agent reads is sent wherever the agent sends it (for example to an AI provider). Only connect agents you trust.</li>
-                              <li>Receipts, tags and tax data are not available through this API. Agents cannot edit or delete anything.</li>
+                              <li>Receipts, tags and tax data are not available through this API. Agents cannot delete anything or change existing text; the only edit they can make is appending to a job&apos;s description.</li>
                               <li>You can remove agent access or revoke the key at any time; the server then deletes the keys it held.</li>
                             </ul>
                           </div>

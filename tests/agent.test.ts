@@ -108,6 +108,30 @@ await t('write key creates a job; the browser adopts its key and re-seals it und
   assert.equal(sched.json.jobs.find((j: any) => j.id === agentJob)?.start_date, '2026-06-01');
   assert.equal((await agent(readKey.header, 'GET', `/jobs/${agentJob}`)).status, 404, 'a selected-jobs key does not see jobs created by other keys');
 });
+await t('write key appends to a description (never overwrites), idempotently; the browser sees it', async () => {
+  const first = await agent(writeKey.header, 'POST', '/jobs', { title: 'Research Target', description: 'Customer: Pat\nVehicle: 2015 Ford F-150' });
+  assert.equal(first.status, 201); const id = first.json.id;
+  const r = await agent(writeKey.header, 'POST', `/jobs/${id}/description`, { append: '### Research\nTorque spec: 148 ft-lb' });
+  assert.equal(r.status, 201, JSON.stringify(r.json)); assert.equal(r.json.duplicate, false);
+  assert.equal(r.json.description, 'Customer: Pat\nVehicle: 2015 Ford F-150\n\n### Research\nTorque spec: 148 ft-lb', 'original text kept, addition after it');
+  const again = await agent(writeKey.header, 'POST', `/jobs/${id}/description`, { append: '### Research\nTorque spec: 148 ft-lb' });
+  assert.equal(again.status, 200); assert.equal(again.json.duplicate, true);
+  assert.equal((await agent(writeKey.header, 'GET', `/jobs/${id}`)).json.description, r.json.description, 'a retry does not append twice');
+  const second = await agent(writeKey.header, 'POST', `/jobs/${id}/description`, { append: 'Second finding' });
+  assert.ok(second.json.description.endsWith('Torque spec: 148 ft-lb\n\nSecond finding'));
+  assert.equal(second.json.title, 'Research Target'); assert.equal(second.json.client_name, null, 'other fields untouched');
+  invalidate(''); await ensureJobKeys(true);
+  const mine = (await page('GET', '/api/jobs')).json.find((j: any) => j.id === id);
+  assert.ok(mine && mine.description.includes('Second finding') && mine.description.startsWith('Customer: Pat'), 'owner decrypts the appended description');
+});
+await t('description append is write-only, validated and scoped to covered jobs', async () => {
+  assert.equal((await agent(readKey.header, 'POST', `/jobs/${alpha}/description`, { append: 'x' })).status, 403, 'read-only key');
+  assert.equal((await agent(writeKey.header, 'POST', `/jobs/${crypto.randomUUID()}/description`, { append: 'x' })).status, 404, 'unknown job');
+  for (const bad of [{}, { append: '' }, { append: '   ' }, { append: 5 }, { append: 'x'.repeat(100_001) }, { description: 'replace' }])
+    assert.equal((await agent(writeKey.header, 'POST', `/jobs/${alpha}/description`, bad)).status, 400, JSON.stringify(bad).slice(0, 60));
+  assert.equal((await agent(plain.header, 'POST', `/jobs/${alpha}/description`, { append: 'x' })).status, 403, 'calendar-only key');
+  assert.equal((await agent(writeKey.header, 'PATCH', `/jobs/${alpha}`, { description: 'x' })).status, 404, 'no general edit route exists');
+});
 await t('an "all jobs" key is topped up when the browser later creates a job; a selected-jobs key is not', async () => {
   const later = (await page('POST', '/api/jobs', { title: 'Created Later In Browser' })).json.id;
   await syncAgentBundles();
@@ -118,7 +142,7 @@ await t('an "all jobs" key is topped up when the browser later creates a job; a 
 await t('the database holds no plaintext of anything agents read or wrote', async () => {
   const db = new Database(`${DATA_DIR}/data.db`); db.pragma('wal_checkpoint(TRUNCATE)'); db.close();
   const raw = fs.readFileSync(`${DATA_DIR}/data.db`);
-  for (const needle of ['Agent Made Job', 'Lumber from agent', 'Robo Client', 'Zed Customer', 'Alpha Kitchen Remodel'])
+  for (const needle of ['Agent Made Job', 'Lumber from agent', 'Robo Client', 'Zed Customer', 'Alpha Kitchen Remodel', 'Torque spec: 148', 'Second finding'])
     assert.ok(!raw.includes(Buffer.from(needle)), `plaintext "${needle}" found in database file`);
 });
 await t('removing agent access and revoking keys takes effect immediately', async () => {

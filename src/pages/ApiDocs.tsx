@@ -139,8 +139,9 @@ GET  /api/agent/v1/jobs
 GET  /api/agent/v1/jobs/:id
 POST /api/agent/v1/jobs                       (read + write keys)  { "title": "…", "start_date": "YYYY-MM-DD" }
 GET  /api/agent/v1/jobs/:id/expenses?from=&to=&type=&limit=&offset=
-POST /api/agent/v1/jobs/:id/expenses          (read + write keys)  { "amount": 42.5, "description": "…", "entry_type": "expense" }`}</div>
-                <p>Agents cannot edit or delete anything, and receipts, tags and tax data are not available. Full reference: <code className="text-white">docs/API.md</code> (“Agent API”).</p>
+POST /api/agent/v1/jobs/:id/expenses          (read + write keys)  { "amount": 42.5, "description": "…", "entry_type": "expense" }
+POST /api/agent/v1/jobs/:id/description       (read + write keys)  { "append": "…" }   (append-only)`}</div>
+                <p>Agents cannot delete anything or change existing text (the only edit is appending to a job&apos;s description), and receipts, tags and tax data are not available. Full reference: <code className="text-white">docs/API.md</code> (“Agent API”).</p>
               </div>
             </div>
           </div>
