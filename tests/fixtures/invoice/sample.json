@@ -1,0 +1,78 @@
+{
+  "meta": {
+    "invoiceNumber": "INV-2026-1001",
+    "date": "2026-01-15",
+    "dueDate": "2026-01-29",
+    "status": "Approved"
+  },
+  "shop": {
+    "name": "Future's Automotive",
+    "address": "742 Evergreen Terrace, Bay 4, Springfield",
+    "phone": "(555) 019-2834",
+    "email": "service@futuresautomotive.example",
+    "licenseNumber": "ARD-994821"
+  },
+  "customer": {
+    "name": "Jordan Taylor",
+    "phone": "(555) 014-7782",
+    "email": "jordan.taylor@example.com",
+    "address": "318 Willow Creek Drive, Springfield"
+  },
+  "vehicle": {
+    "year": "2021",
+    "make": "Honda",
+    "model": "Accord",
+    "vin": "1HGCV1F34MA012345",
+    "licensePlate": "8VIN123",
+    "mileage": "48250",
+    "engine": "1.5L Turbo I4",
+    "serviceAdvisor": "Sam Rivera"
+  },
+  "laborItems": [
+    {
+      "description": "Synthetic oil and filter change",
+      "technician": "Alex Chen",
+      "hours": 0.6,
+      "rate": 95,
+      "id": "labor-1"
+    },
+    {
+      "description": "Tire rotation and multi-point inspection",
+      "technician": "Alex Chen",
+      "hours": 0.5,
+      "rate": 95,
+      "id": "labor-2"
+    }
+  ],
+  "partItems": [
+    {
+      "partNumber": "FSO-5W30",
+      "description": "Full-synthetic 5W-30 motor oil",
+      "quantity": 5,
+      "unitPrice": 9.5,
+      "id": "part-1"
+    },
+    {
+      "partNumber": "OF-1042",
+      "description": "Premium engine oil filter",
+      "quantity": 1,
+      "unitPrice": 12.99,
+      "id": "part-2"
+    }
+  ],
+  "settings": {
+    "taxRate": 8.25,
+    "taxLabor": false,
+    "discountType": "percent",
+    "discountValue": 0,
+    "shopSuppliesRate": 5,
+    "shopSuppliesCap": 35,
+    "hazardousWasteFee": 3.5,
+    "travelFee": 0,
+    "miscFee": 0
+  },
+  "notes": {
+    "customerNotes": "Rotate tires and inspect fluid levels during service.",
+    "termsAndConditions": "All parts and labor warranted for 12 months or 12,000 miles, whichever comes first."
+  }
+}

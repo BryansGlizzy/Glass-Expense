@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
 import { Plus, Receipt, Copy, Check, Image as ImageIcon, DollarSign, Archive, Trash2, ListTree, Link as LinkIcon, RefreshCw, Paperclip, Sparkles, Download, Upload, WifiOff, Wifi, CloudUpload, Briefcase, Calendar, Bot, FileText, Maximize2, X, LogOut, Eye, Lock, ExternalLink, AlertTriangle, Save, Tag as TagIcon } from 'lucide-react';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
-import InvoiceGenerator, { InvoiceView, InvoicePreview } from '../components/InvoiceGenerator';
+import JobInvoicePanel from '../components/invoice/JobInvoicePanel';
 import { motion, AnimatePresence } from 'motion/react';
 import { encryptFile, decryptFile } from '../utils/crypto';
 import { runLocalOcr } from '../utils/ocr';
@@ -184,6 +184,7 @@ export default function Job() {
   const [editClientName, setEditClientName] = useState('');
   const [editClientAddress, setEditClientAddress] = useState('');
   const [editClientEmail, setEditClientEmail] = useState('');
+  const [editClientPhone, setEditClientPhone] = useState('');
   const [editJobRate, setEditJobRate] = useState('');
   const [editInvoiceNotes, setEditInvoiceNotes] = useState('');
   const [editInvoiceNumber, setEditInvoiceNumber] = useState('');
@@ -239,18 +240,8 @@ export default function Job() {
   const [editedNotes, setEditedNotes] = useState('');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
 
-  // Invoice States
-  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  // Invoice template (company prefix) used by the Edit Job dialog. Invoices themselves live on /invoices.
   const [invoiceTemplate, setInvoiceTemplate] = useState<any>(null);
-  const [invoiceTotalLaborHours, setInvoiceTotalLaborHours] = useState('0');
-  const [invoiceHourlyRate, setInvoiceHourlyRate] = useState('');
-  const [invoiceNotes, setInvoiceNotes] = useState('');
-  const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [invoiceTag, setInvoiceTag] = useState('');
-  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
-  const [invoiceModalError, setInvoiceModalError] = useState('');
-  const [invoiceModalSuccess, setInvoiceModalSuccess] = useState(false);
-  const invoiceRef = useRef<any>(null);
 
   const navigate = useNavigate();
 
@@ -686,84 +677,6 @@ export default function Job() {
     return formatInvoiceNumber(prefix, seq || 1);
   };
 
-  const openInvoiceModal = () => {
-    setInvoiceTotalLaborHours('0');
-    const defaultRate = (job.job_rate !== undefined && job.job_rate !== null && job.job_rate !== '')
-      ? String(job.job_rate)
-      : (invoiceTemplate?.default_hourly_rate !== undefined && invoiceTemplate?.default_hourly_rate !== null ? String(invoiceTemplate.default_hourly_rate) : '');
-    setInvoiceHourlyRate(defaultRate);
-    setInvoiceNotes(job.invoice_notes || '');
-    setInvoiceTag(job.invoice_tag || '');
-    setInvoiceNumber(job.invoice_number || computeInvoiceNum(job.invoice_seq, job.invoice_tag));
-    setInvoiceModalError('');
-    setInvoiceModalSuccess(false);
-    setIsInvoiceModalOpen(true);
-  };
-
-  const handleInvoiceTagChange = (newTag: string) => {
-    setInvoiceTag(newTag);
-    setInvoiceModalError('');
-    if (newTag === (job.invoice_tag || '')) {
-      setInvoiceNumber(job.invoice_number || computeInvoiceNum(job.invoice_seq, job.invoice_tag));
-    } else {
-      fetchNextInvoiceNumberForTag(newTag, (num) => setInvoiceNumber(num));
-    }
-  };
-
-  const handleSaveInvoiceDetails = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (isSavingInvoice) return false;
-    setIsSavingInvoice(true);
-    setInvoiceModalError('');
-    setInvoiceModalSuccess(false);
-    try {
-      const rateVal = parseFloat(invoiceHourlyRate) || 0;
-      if (token && id && job.created_by === user?.id) {
-        const res = await fetch(`/api/jobs/${id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            job_rate: rateVal,
-            invoice_notes: invoiceNotes,
-            invoice_tag: invoiceTag || null,
-            invoice_number: invoiceNumber.trim() || null,
-          }),
-        });
-        if (res.ok) {
-          const updated = await res.json();
-          setJob(updated);
-          setInvoiceModalSuccess(true);
-          setTimeout(() => setInvoiceModalSuccess(false), 3000);
-          return true;
-        } else {
-          const err = await res.json();
-          setInvoiceModalError(err.error || 'Failed to save invoice settings');
-          return false;
-        }
-      }
-      return true;
-    } catch (err) {
-      console.error("Failed to auto-save invoice settings to job:", err);
-      setInvoiceModalError('Network error while saving invoice settings');
-      return false;
-    } finally {
-      setIsSavingInvoice(false);
-    }
-  };
-
-  const handleDownloadInvoice = async () => {
-    const saved = await handleSaveInvoiceDetails();
-    if (!saved) return;
-    try {
-      await invoiceRef.current?.generatePDF();
-    } catch (err) {
-      console.error("Failed to generate PDF:", err);
-    }
-  };
-
   const openEditJobModal = () => {
     setEditTitle(job.title);
     setEditDescription(job.description || '');
@@ -775,6 +688,7 @@ export default function Job() {
     setEditClientName(job.client_name || '');
     setEditClientAddress(job.client_address || '');
     setEditClientEmail(job.client_email || '');
+    setEditClientPhone(job.client_phone || '');
     setEditJobRate(job.job_rate?.toString() || '');
     setEditInvoiceNotes(job.invoice_notes || '');
     setEditInvoiceTag(job.invoice_tag || '');
@@ -816,6 +730,7 @@ export default function Job() {
           client_name: editClientName,
           client_address: editClientAddress,
           client_email: editClientEmail,
+          client_phone: editClientPhone,
           job_rate: parseFloat(editJobRate) || 0,
           invoice_notes: editInvoiceNotes,
           invoice_tag: editInvoiceTag || null,
@@ -1360,6 +1275,7 @@ export default function Job() {
             )}
           </div>
           <p className="text-gray-400 max-w-2xl whitespace-pre-wrap">{baseDescription}</p>
+          <JobInvoicePanel job={job} canEdit={job.created_by === user?.id} onChanged={fetchJob} />
           {aiNotes && (
             <div 
               onClick={() => {
@@ -1421,7 +1337,7 @@ export default function Job() {
               {/* Row 1: 3 Equal Buttons */}
               <div className="grid grid-cols-3 gap-2 w-full">
                 <button
-                  onClick={openInvoiceModal}
+                  onClick={() => navigate(`/invoices?job=${job.id}`)}
                   className="flex items-center justify-center space-x-1.5 bg-indigo-500 hover:bg-indigo-600 border border-indigo-400/50 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-medium text-white transition-colors shadow-sm"
                 >
                   <FileText className="w-4 h-4 shrink-0" />
@@ -2220,6 +2136,16 @@ export default function Job() {
                           placeholder="billing@acme.com" 
                         />
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Client Phone</label>
+                        <input 
+                          type="tel" 
+                          value={editClientPhone} 
+                          onChange={(e) => setEditClientPhone(e.target.value)} 
+                          className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-[#7c3bed]/50" 
+                          placeholder="(555) 010-0100" 
+                        />
+                      </div>
                     </div>
 
                     <div>
@@ -2499,232 +2425,6 @@ export default function Job() {
           </motion.div>
         </div>
       )}
-
-      {/* Invoice Modal */}
-      {isInvoiceModalOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#1c172d] border border-white/10 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden relative my-auto"
-          >
-            {/* Modal Header */}
-            <div className="p-4 sm:p-6 border-b border-white/10 flex justify-between items-center bg-black/20 shrink-0">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-white">
-                  <FileText className="w-5 h-5 text-indigo-400" /> Generate Invoice
-                </h2>
-                <p className="text-xs text-gray-400 mt-0.5">Customize invoice settings and review live preview below</p>
-              </div>
-              <button 
-                onClick={() => setIsInvoiceModalOpen(false)} 
-                className="text-gray-400 hover:text-white p-1.5 rounded-xl hover:bg-white/5 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            {/* Modal Scrollable Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
-              {invoiceModalError && (
-                <div className="p-4 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-sm flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 shrink-0" />
-                  <span>{invoiceModalError}</span>
-                </div>
-              )}
-              {invoiceModalSuccess && (
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-sm flex items-center gap-2">
-                  <Check className="w-5 h-5 shrink-0" />
-                  <span>Invoice details saved successfully!</span>
-                </div>
-              )}
-              {!invoiceTemplate?.company_name && (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-200 rounded-xl text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <strong>Missing Setup:</strong> You haven't configured your company details for invoices yet. Configure your company name, logo, prefix, and terms in settings.
-                  </div>
-                  <Link
-                    to="/settings#invoice"
-                    className="shrink-0 px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-xl text-xs font-medium transition-colors border border-amber-500/30 inline-flex items-center gap-1.5 self-start sm:self-auto"
-                  >
-                    <span>Open Settings</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              )}
-
-              {/* Settings: 2 Column Grid on Desktop, 1 Column on Mobile */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* Left Column: Labor Hours & Rate + Client Info */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Invoice Tag / Category</label>
-                      <select
-                        value={invoiceTag}
-                        onChange={(e) => handleInvoiceTagChange(e.target.value)}
-                        className="w-full bg-[#1c172d] border border-white/10 rounded-xl px-3 py-3 text-white text-sm focus:ring-2 focus:ring-[#7c3bed]/50"
-                      >
-                        <option value="">[Default] ({invoiceTemplate?.default_prefix || 'INV'})</option>
-                        {globalTags.map(t => (
-                          <option key={t.id} value={t.name}>{t.name.toUpperCase()}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Invoice #</label>
-                      <input
-                        type="text"
-                        value={invoiceNumber}
-                        onChange={(e) => {
-                          setInvoiceNumber(e.target.value.toUpperCase());
-                          setInvoiceModalError('');
-                        }}
-                        className="w-full bg-black/20 border border-white/10 px-4 py-3 text-indigo-300 font-mono text-sm rounded-xl focus:ring-2 focus:ring-[#7c3bed]/50"
-                        placeholder="e.g. INV-A00001"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Total Labor Hours</label>
-                      <input
-                        type="number"
-                        value={invoiceTotalLaborHours}
-                        onChange={(e) => setInvoiceTotalLaborHours(e.target.value)}
-                        className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-[#7c3bed]/50"
-                        placeholder="0.0"
-                        step="0.1"
-                        min="0"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Hourly Labor Rate ($/hr)</label>
-                      <input
-                        type="number"
-                        value={invoiceHourlyRate}
-                        onChange={(e) => setInvoiceHourlyRate(e.target.value)}
-                        className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-[#7c3bed]/50"
-                        placeholder="75.00"
-                        step="0.01"
-                        min="0"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Client Summary</label>
-                    <div className="p-4 border border-white/5 bg-black/20 rounded-xl text-xs sm:text-sm text-gray-300 space-y-1.5">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="font-semibold text-gray-400 uppercase tracking-wider text-[11px]">Client Details</span>
-                        {job.created_by === user?.id && (
-                          <button
-                            type="button"
-                            onClick={() => { setIsInvoiceModalOpen(false); openEditJobModal(); }}
-                            className="text-indigo-400 hover:text-indigo-300 text-xs transition-colors"
-                          >
-                            Edit Client in Job
-                          </button>
-                        )}
-                      </div>
-                      <p><span className="text-gray-400">Name:</span> {job.client_name || <span className="italic text-gray-500">Not set</span>}</p>
-                      <p><span className="text-gray-400">Address:</span> {job.client_address || <span className="italic text-gray-500">Not set</span>}</p>
-                      <p><span className="text-gray-400">Email:</span> {job.client_email || <span className="italic text-gray-500">Not set</span>}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column: Invoice Notes & Terms */}
-                <div className="flex flex-col">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Invoice Notes & Terms</label>
-                  <textarea
-                    value={invoiceNotes}
-                    onChange={(e) => setInvoiceNotes(e.target.value)}
-                    className="w-full flex-1 min-h-[140px] bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-[#7c3bed]/50 resize-none text-sm transition-all"
-                    placeholder="Terms: Payment due within 30 days. Thank you for your business!"
-                  />
-                  <p className="text-[11px] text-gray-400 mt-2">Appears at the footer of the generated invoice sheet.</p>
-                </div>
-              </div>
-
-              {/* Invoice Preview Section (at bottom after all settings) */}
-              <div className="pt-4 border-t border-white/10">
-                <InvoicePreview
-                  job={{
-                    ...job,
-                    job_rate: parseFloat(invoiceHourlyRate) || 0,
-                    invoice_notes: invoiceNotes,
-                    invoice_tag: invoiceTag,
-                    invoice_number: invoiceNumber,
-                  }}
-                  expenses={expenses}
-                  template={invoiceTemplate}
-                  totalLaborHours={parseFloat(invoiceTotalLaborHours) || 0}
-                  hourlyRate={parseFloat(invoiceHourlyRate) || 0}
-                  invoiceNotes={invoiceNotes}
-                />
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 sm:p-6 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 bg-black/20 shrink-0">
-              <div className="text-xs sm:text-sm text-gray-400">
-                <span className="text-gray-300 font-medium">Labor:</span> ${( (parseFloat(invoiceHourlyRate) || 0) * (parseFloat(invoiceTotalLaborHours) || 0) ).toFixed(2)}
-                <span className="mx-2 text-white/20">|</span>
-                <span className="text-gray-300 font-medium">Grand Total:</span> ${(
-                  (expenses.filter(e => e.entry_type === 'expense').reduce((sum, e) => sum + (Number(e.amount) || 0), 0)) +
-                  ((parseFloat(invoiceHourlyRate) || 0) * (parseFloat(invoiceTotalLaborHours) || 0))
-                ).toFixed(2)}
-              </div>
-              <div className="flex items-center gap-3 ml-auto">
-                <button
-                  type="button"
-                  onClick={() => setIsInvoiceModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => handleSaveInvoiceDetails(e)}
-                  disabled={isSavingInvoice}
-                  className="px-4 py-2.5 rounded-xl text-sm font-medium bg-white/10 hover:bg-white/15 text-white transition-colors flex items-center gap-2 disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Details</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadInvoice}
-                  disabled={isSavingInvoice}
-                  className="px-5 py-2.5 rounded-xl text-sm font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
-                >
-                  {isSavingInvoice ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  <span>{isSavingInvoice ? 'Generating PDF...' : 'Download PDF'}</span>
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Hidden Invoice Generator (Rendered for Canvas) */}
-      <InvoiceGenerator
-        ref={invoiceRef}
-        job={{
-          ...job,
-          job_rate: parseFloat(invoiceHourlyRate) || 0,
-          invoice_notes: invoiceNotes,
-          invoice_tag: invoiceTag,
-          invoice_number: invoiceNumber,
-        }}
-        expenses={expenses}
-        template={invoiceTemplate}
-        totalLaborHours={parseFloat(invoiceTotalLaborHours) || 0}
-        hourlyRate={parseFloat(invoiceHourlyRate) || 0}
-        invoiceNotes={invoiceNotes}
-      />
 
     </div>
   );

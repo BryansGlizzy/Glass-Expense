@@ -106,6 +106,7 @@ export const aad = {
   job: (jobId: string) => `job|${jobId}`,
   expense: (jobId: string, id: string) => `expense|${jobId}|${id}`,
   wishlist: (jobId: string, id: string) => `wishlist|${jobId}|${id}`,
+  invoice: (jobId: string, id: string) => `invoice|${jobId}|${id}`,
   subscription: (jobId: string, id: string) => `subscription|${jobId}|${id}`,
   blob: (userId: string, name: string) => `blob|${userId}|${name}`,
   calendarTitle: (jobId: string) => `calendar-title|${jobId}`,

@@ -1,0 +1,64 @@
+{
+  "meta": {
+    "invoiceNumber": "TEST-A00001",
+    "date": "2026-01-15",
+    "dueDate": "2026-01-29",
+    "status": "Draft"
+  },
+  "shop": {
+    "name": "Example Auto Service",
+    "address": "100 Example Road, Sampletown, ST 00000",
+    "phone": "(555) 010-0100",
+    "email": "shop@example.com",
+    "licenseNumber": "LIC-0001"
+  },
+  "customer": {
+    "name": "Pat Example",
+    "phone": "(555) 010-0199",
+    "email": "pat@example.com",
+    "address": "200 Sample Street, Sampletown, ST 00000"
+  },
+  "vehicle": {
+    "year": "2018",
+    "make": "Toyota",
+    "model": "Tacoma",
+    "vin": "5TFAX5GN0JX000000",
+    "licensePlate": "ABC1234",
+    "mileage": "84210",
+    "engine": "3.5L V6",
+    "serviceAdvisor": "Sam"
+  },
+  "laborItems": [
+    {
+      "description": "Service task 1",
+      "technician": "Tech 1",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-1"
+    }
+  ],
+  "partItems": [
+    {
+      "partNumber": "PN-1000",
+      "description": "Part item 1",
+      "quantity": 1,
+      "unitPrice": 4.5,
+      "id": "part-1"
+    }
+  ],
+  "settings": {
+    "taxRate": 5,
+    "taxLabor": false,
+    "discountType": "fixed",
+    "discountValue": 9999,
+    "shopSuppliesRate": 0,
+    "shopSuppliesCap": 0,
+    "hazardousWasteFee": 0,
+    "travelFee": 0,
+    "miscFee": 0
+  },
+  "notes": {
+    "customerNotes": "",
+    "termsAndConditions": "Payment due on receipt."
+  }
+}

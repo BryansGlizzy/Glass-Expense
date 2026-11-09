@@ -6,10 +6,32 @@ import {
   encExpense, toExpenseBlob, uuid, getJob, TagRef,
 } from '../store';
 import { nextSubscriptionDate } from '../subscriptions';
+import { normalizeSettings } from '../../invoice/settings';
 import { Route, ok, bad, NotFound } from './types';
 
 const clean = (v: any, max: number): string | null => (v === undefined || v === null || v === '' ? null : String(v).slice(0, max));
 const today = () => new Date().toISOString().slice(0, 10);
+
+/** Endpoint profiles (default / drafting / research): URL must be http(s); the server re-validates every URL before it is ever called. */
+function cleanProfiles(raw: any): Record<string, { base_url: string; model: string; api_key: string; timeout_s: number }> {
+  const out: Record<string, any> = {};
+  for (const name of ['default', 'drafting', 'research']) {
+    const p = raw?.[name]; if (!p || typeof p !== 'object') continue;
+    const base_url = clean(p.base_url, 500) || ''; if (base_url && !/^https?:\/\//i.test(base_url)) bad(`${name}: base URL must start with http:// or https://`);
+    const model = clean(p.model, 100) || ''; if (!base_url && !model) continue;
+    const t = Number(p.timeout_s);
+    out[name] = { base_url, model, api_key: clean(p.api_key, 500) || '', timeout_s: Number.isFinite(t) ? Math.min(900, Math.max(10, t)) : (name === 'research' ? 600 : 120) };
+  }
+  return out;
+}
+
+/** The research profile from the encrypted AI settings, in the shape the server's bundle expects (null when none is configured). */
+async function researchConfigFromSettings(): Promise<Record<string, unknown> | null> {
+  const { researchSettings } = await import('../../invoice/aiSettings');
+  const s = await getBlob<any>('ai_settings', {});
+  const r = researchSettings(s);
+  return r ? { ...r } : null;
+}
 
 interface TagLibrary { tags: Array<TagRef & { created_at?: string }> }
 const loadTags = async (): Promise<TagLibrary> => {
@@ -52,7 +74,9 @@ export const entryRoutes: Route[] = [
       amount, description: clean(form!.get('description'), 1000), entry_type: form!.get('entry_type') === 'income' ? 'income' : 'expense',
       date: /^\d{4}-\d{2}-\d{2}/.test(String(form!.get('date') || '')) ? String(form!.get('date')).slice(0, 10) : null, tags: await tagRefs(tagIds),
     });
-    const id = uuid();
+    // A caller may supply the id (a deterministic one for invoice payments, so two devices cannot double-post); otherwise it is random.
+    const suppliedId = String(form!.get('id') || '');
+    const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(suppliedId) ? suppliedId : uuid();
     const out = new FormData();
     out.append('id', id);
     out.append('enc', await encExpense(jobId, id, blob));
@@ -156,7 +180,16 @@ export const entryRoutes: Route[] = [
   }],
 
   // ── Invoice template ───────────────────────────────────────────────────────
-  ['GET', /^\/api\/(invoice-templates|settings\/invoice-template)$/, async () => ok(await getBlob<any>('invoice_template', null))],
+  // The company profile now lives in Settings → Invoices (shop profile). This legacy route, still read by Reports and the dashboard, is derived from it.
+  ['GET', /^\/api\/(invoice-templates|settings\/invoice-template)$/, async () => {
+    const t = await getBlob<any>('invoice_template', null);
+    if (!t?.invoicing) return ok(t);
+    const s = normalizeSettings(t.invoicing);
+    return ok({
+      ...t, company_name: s.shop.name, company_address: [s.shop.address, [s.shop.phone, s.shop.email].filter(Boolean).join(' | ')].filter(Boolean).join('\n'),
+      company_logo_url: s.shop.logo, default_hourly_rate: s.rates.hourlyRate, default_prefix: s.numbering.prefix, footer_notes: s.terms.customerNotes,
+    });
+  }],
   ['POST', /^\/api\/invoice-templates$/, async ({ body }) => {
     let logo = clean(body.company_logo_url, 2000);
     if (logo) { try { const u = new URL(logo); if (!/^https?:$/.test(u.protocol)) throw 0; logo = u.toString(); } catch { bad('Logo URL must be a valid http(s) URL'); } }
@@ -166,6 +199,8 @@ export const entryRoutes: Route[] = [
       company_logo_url: logo, default_hourly_rate: Number(body.default_hourly_rate) || 0, footer_notes: clean(body.footer_notes, 2000),
       default_prefix: (body.default_prefix ? String(body.default_prefix).replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase() : 'INV') || 'INV',
       created_at: prev?.created_at || new Date().toISOString(),
+      // Invoicing 2.0 settings live inside this same blob; the legacy company form must never erase them.
+      ...(prev?.invoicing ? { invoicing: prev.invoicing } : {}),
     };
     await setBlob('invoice_template', template);
     return ok({ success: true, template });
@@ -177,6 +212,8 @@ export const entryRoutes: Route[] = [
     return ok({
       ai_api_key: s.ai_api_key || '', ai_api_key_set: !!s.ai_api_key, ai_base_url: s.ai_base_url || 'https://api.openai.com/v1',
       ai_model: s.ai_model || 'gpt-4o-mini', use_on_device_ai: s.use_on_device_ai ? 1 : 0, on_device_ai_model: s.on_device_ai_model || 'tesseract',
+      // Invoicing 2.0: named endpoint profiles (default / drafting / research) and the research prompt, all kept only in the encrypted vault.
+      profiles: s.profiles || {}, research: s.research || {},
     });
   }],
   ['POST', /^\/api\/settings\/ai$/, async ({ body }) => {
@@ -191,6 +228,11 @@ export const entryRoutes: Route[] = [
     if (body.ai_model !== undefined) next.ai_model = clean(body.ai_model, 100) || '';
     if (body.use_on_device_ai !== undefined) next.use_on_device_ai = body.use_on_device_ai ? 1 : 0;
     if (body.on_device_ai_model !== undefined) next.on_device_ai_model = clean(body.on_device_ai_model, 200) || 'tesseract';
+    if (body.profiles !== undefined) next.profiles = cleanProfiles(body.profiles);
+    if (body.research !== undefined) {
+      const r = body.research || {};
+      next.research = { heading: clean(r.heading, 200) || '', prompt: clean(r.prompt, 6000) || '', sink_url: clean(r.sink_url, 500) || '', sink_token: clean(r.sink_token, 500) || '' };
+    }
     await setBlob('ai_settings', next);
     return ok();
   }],
@@ -221,7 +263,11 @@ export const entryRoutes: Route[] = [
       await ensureJobKeys(true);
       const id = uuid();
       payload.id = id;
-      payload.agent = { access: agent.access, all_jobs: !!agent.all_jobs, bundle: await buildAgentBundle(id, ids) };
+      const invoices = ['none', 'read', 'draft', 'finalize'].includes(agent.invoices) ? agent.invoices : 'none';
+      // Optional: let GE research jobs this key posts. The research endpoint is copied from the user's AI settings into the sealed bundle.
+      const research = agent.research ? await researchConfigFromSettings() : undefined;
+      if (agent.research && !research) bad('Set up the Research endpoint in Settings → AI before enabling research for this key');
+      payload.agent = { access: agent.access, all_jobs: !!agent.all_jobs, invoices, research: !!research, bundle: await buildAgentBundle(id, ids, research) };
     }
     const r = await api<{ key: any }>('POST', '/api/keys', { body: payload });
     return ok({ key: r.key, rawKey: k.fullKey, headerKey: k.headerKey });

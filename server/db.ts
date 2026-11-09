@@ -704,6 +704,21 @@ addColumn('api_keys', 'last_used_at', 'DATETIME');
 addColumn('api_keys', 'agent_scope', 'TEXT');                    // JSON {access, all_jobs} when the key was opted in to agent access
 addColumn('api_keys', 'agent_bundle', 'TEXT');                   // job keys + calendar key + inbox key, sealed under SERVER_WRAP_KEY
 
+// Invoicing 2.0 (docs/INVOICING_PLAN.md §5.8): one small encrypted JSON record per invoice/estimate, sealed under the JOB key.
+// Active job members can read it; only the job owner can write it (enforced in routes/data.ts). The server never sees content.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS invoices (
+    id TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL REFERENCES jobs (id),
+    user_id TEXT NOT NULL REFERENCES users (id),
+    enc TEXT NOT NULL,
+    rev INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_invoices_job ON invoices (job_id);
+`);
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS user_blobs (
     user_id TEXT NOT NULL,

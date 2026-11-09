@@ -19,7 +19,7 @@ import { syncJobToGoogle, deleteGoogleEvent } from '../google-calendar.js';
  * Titles, amounts, descriptions, clients, notes, tags, tax data and receipts are only ever stored encrypted.
  */
 
-const BLOB_NAMES = ['tags', 'tax_settings', 'tax_mappings', 'w2_forms', 'invoice_template', 'ai_settings', 'preferences'] as const;
+const BLOB_NAMES = ['tags', 'tax_settings', 'tax_mappings', 'w2_forms', 'invoice_template', 'invoice_packages', 'ai_settings', 'preferences'] as const;
 const MAX_BLOB_CHARS = 900 * 1024;
 
 const dbJson = (res: any, fn: () => any) => {
@@ -128,6 +128,7 @@ export function registerDataRoutes(app: Express, io: Server) {
     try {
       db.transaction(() => {
         db.prepare('DELETE FROM expenses WHERE job_id = ?').run(id);
+        db.prepare('DELETE FROM invoices WHERE job_id = ?').run(id);
         db.prepare('DELETE FROM wishlist_items WHERE job_id = ?').run(id);
         db.prepare('DELETE FROM subscriptions WHERE job_id = ?').run(id);
         db.prepare('DELETE FROM job_users WHERE job_id = ?').run(id);
@@ -406,6 +407,72 @@ export function registerDataRoutes(app: Express, io: Server) {
   app.delete('/api/v2/jobs/:jobId/wishlist/:itemId', ...session, requireJobAccess, itemGuard('wishlist_items'), (req: any, res) => {
     db.prepare('DELETE FROM wishlist_items WHERE id = ?').run(req.params.itemId);
     io.to(req.params.jobId).emit('wishlist_item_deleted', req.params.itemId);
+    res.json({ success: true });
+  });
+
+  // ── Invoices (docs/INVOICING_PLAN.md §5.8) ────────────────────────────────────────────────────────────────────
+  // Ciphertext only, sealed under the job key. Active members may READ; only the job owner may write, enforced here (a member's
+  // client could otherwise write, because members hold the job key). Optimistic concurrency through `rev`.
+  const MAX_INVOICE_ENC = 100 * 1024;
+  const invoiceRow = (id: string) => db.prepare('SELECT id, job_id, user_id, enc, rev, created_at, updated_at FROM invoices WHERE id = ?').get(id) as any;
+
+  app.get('/api/v2/invoices', ...session, (req: any, res) => {
+    res.json(db.prepare(`
+      SELECT i.id, i.job_id, i.user_id, i.enc, i.rev, i.created_at, i.updated_at FROM invoices i JOIN jobs j ON j.id = i.job_id
+      WHERE j.created_by = ? OR EXISTS (SELECT 1 FROM job_users ju WHERE ju.job_id = j.id AND ju.user_id = ? AND COALESCE(ju.status,'active') = 'active')
+      ORDER BY i.created_at DESC`).all(req.user.id, req.user.id));
+  });
+
+  app.get('/api/v2/jobs/:jobId/invoices', ...session, requireJobAccess, (req: any, res) => {
+    res.json(db.prepare('SELECT id, job_id, user_id, enc, rev, created_at, updated_at FROM invoices WHERE job_id = ? ORDER BY created_at DESC').all(req.params.jobId));
+  });
+
+  app.post('/api/v2/jobs/:jobId/invoices', ...session, requireJobAccess, requireJobOwner, (req: any, res) => {
+    try {
+      if (!isUuid(req.body?.id)) throw new ValidationError('id must be a UUID');
+      const enc = envelope(req.body?.enc, 'enc', MAX_INVOICE_ENC);
+      if (db.prepare('SELECT 1 FROM invoices WHERE id = ?').get(req.body.id)) {
+        const existing = invoiceRow(req.body.id);
+        // Re-posting the same deterministic id from a second device is not an error for the owner: hand back what exists.
+        if (existing.job_id === req.params.jobId && existing.user_id === req.user.id) return res.status(200).json({ ...existing, duplicate: true });
+        return res.status(409).json({ error: 'Invoice already exists' });
+      }
+      db.prepare('INSERT INTO invoices (id, job_id, user_id, enc) VALUES (?, ?, ?, ?)').run(req.body.id, req.params.jobId, req.user.id, enc);
+      const row = invoiceRow(req.body.id);
+      touchJob(req.params.jobId);
+      io.to(req.params.jobId).emit('invoice_updated', row);
+      res.status(201).json(row);
+    } catch (err) { badRequest(res, err); }
+  });
+
+  /** Resolves :id to its job, hides it from non-members (404) and from members for writes (403). */
+  const invoiceWriteGuard = (req: any, res: any, next: any) => {
+    const row = typeof req.params.id === 'string' ? invoiceRow(req.params.id) : null;
+    const access = row ? getJobAccess(row.job_id, req.user.id) : null;
+    if (!row || !access) return res.status(404).json({ error: 'Invoice not found' });
+    if (!access.isOwner) return res.status(403).json({ error: 'Only the job owner can change invoices' });
+    req.invoice = row; next();
+  };
+
+  app.put('/api/v2/invoices/:id', ...session, invoiceWriteGuard, (req: any, res) => {
+    try {
+      const enc = envelope(req.body?.enc, 'enc', MAX_INVOICE_ENC);
+      const expected = req.body?.expected_rev;
+      if (expected !== undefined && (!Number.isInteger(expected) || expected < 1)) throw new ValidationError('expected_rev must be a positive integer');
+      // Compare-and-swap in one statement so two devices cannot both win.
+      const r = db.prepare('UPDATE invoices SET enc = ?, rev = rev + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND (? IS NULL OR rev = ?)')
+        .run(enc, req.params.id, expected ?? null, expected ?? null);
+      if (r.changes === 0) return res.status(409).json({ error: 'This invoice was changed elsewhere. Reload it and try again.', current: invoiceRow(req.params.id) });
+      const row = invoiceRow(req.params.id);
+      touchJob(row.job_id);
+      io.to(row.job_id).emit('invoice_updated', row);
+      res.json(row);
+    } catch (err) { badRequest(res, err); }
+  });
+
+  app.delete('/api/v2/invoices/:id', ...session, invoiceWriteGuard, (req: any, res) => {
+    db.prepare('DELETE FROM invoices WHERE id = ?').run(req.params.id);
+    io.to(req.invoice.job_id).emit('invoice_deleted', { id: req.params.id, job_id: req.invoice.job_id });
     res.json({ success: true });
   });
 

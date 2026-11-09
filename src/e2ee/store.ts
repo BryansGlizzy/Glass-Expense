@@ -4,11 +4,14 @@
  */
 import * as C from './crypto';
 import { api, cached, invalidate, prime, getSession, getJobKey, requireJobKey, HttpError } from './session';
+import type { JobIntake } from '../invoice/intake';
 
 // ── Plaintext shapes (what the encrypted blobs contain) ──────────────────────
 export interface JobBlob {
   title: string; description: string | null; mode: 'expense' | 'budget';
   client_name: string | null; client_address: string | null; client_email: string | null;
+  /** Added by Invoicing 2.0; older blobs simply lack them (see emptyJobBlob). Every copy of this shape must carry them (blobOf in handlers/jobs.ts, server/agent-core.ts). */
+  client_phone: string | null; intake: JobIntake | null;
   job_rate: number; invoice_notes: string | null; invoice_tag: string | null; invoice_seq: number | null; invoice_number: string | null;
   google_sync_expenses: number;
 }
@@ -21,7 +24,7 @@ export interface SubscriptionBlob {
 }
 
 export const emptyJobBlob = (): JobBlob => ({
-  title: '', description: null, mode: 'expense', client_name: null, client_address: null, client_email: null, job_rate: 0,
+  title: '', description: null, mode: 'expense', client_name: null, client_address: null, client_email: null, client_phone: null, intake: null, job_rate: 0,
   invoice_notes: null, invoice_tag: null, invoice_seq: null, invoice_number: null, google_sync_expenses: 0,
 });
 
@@ -36,7 +39,7 @@ export interface ExpenseView extends ExpenseBlob {
 }
 
 // ── Personal encrypted blobs (tags, tax settings, ...) ───────────────────────
-type BlobName = 'tags' | 'tax_settings' | 'tax_mappings' | 'w2_forms' | 'invoice_template' | 'ai_settings' | 'preferences';
+type BlobName = 'tags' | 'tax_settings' | 'tax_mappings' | 'w2_forms' | 'invoice_template' | 'invoice_packages' | 'ai_settings' | 'preferences';
 interface BlobEntry { value: any; version: number }
 
 const loadBlobs = () => cached('blobs', async () => {

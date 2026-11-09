@@ -35,14 +35,59 @@ html, body {
   }
 }
 
+/* Margin 0 on purpose: browsers print their own URL / title / date in a page margin; with none, the sheet draws its own footer instead. */
+@page invoice { size: letter; margin: 0; }
+
 @media print {
+  html, body { background: #ffffff !important; }
   body * {
     visibility: hidden;
   }
   #printable-report-area, #printable-report-area *,
-  #printable-tax-area, #printable-tax-area * {
+  #printable-tax-area, #printable-tax-area *,
+  #printable-invoice-area, #printable-invoice-area * {
     visibility: visible;
   }
+  /* The invoice sheet prints on its own Letter page setup (10/12 mm margins, as the original app) and keeps its white paper design. */
+  #printable-invoice-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0 !important;
+    background: #ffffff !important;
+    page: invoice;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  #printable-invoice-area .ge-sheet {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-width: none !important;
+    padding: 0 12mm !important;
+  }
+  /* Repeating spacer rows give every page its top and bottom margin (the page margin itself is 0). */
+  #printable-invoice-area .sh-sp-top { height: 11mm !important; }
+  #printable-invoice-area .sh-sp-bot { height: 17mm !important; }
+  #printable-invoice-area thead { display: table-header-group; }
+  #printable-invoice-area tfoot { display: table-footer-group; }
+  #printable-invoice-area .ge-sheet .t thead { display: table-header-group; }
+  #printable-invoice-area .ge-sheet .t tfoot { display: table-row-group; }
+  #printable-invoice-area .sh-printfoot {
+    display: flex !important;
+    position: fixed;
+    left: 12mm; right: 12mm; bottom: 7mm;
+    justify-content: space-between;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 2mm;
+    font: 9px/1.2 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #64748b;
+  }
+  #printable-invoice-area .sh-printfoot span { flex: 1; }
+  #printable-invoice-area .sh-printfoot span:nth-child(2) { text-align: center; }
+  #printable-invoice-area .sh-section, #printable-invoice-area .sh-note, #printable-invoice-area .sh-sign, #printable-invoice-area .sh-bottom, #printable-invoice-area .sh-totals, #printable-invoice-area .sh-pay { break-inside: avoid; }
+  #printable-invoice-area tr { break-inside: avoid; }
   #printable-report-area, #printable-tax-area {
     position: absolute;
     left: 0;

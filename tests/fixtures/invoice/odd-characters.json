@@ -1,0 +1,64 @@
+{
+  "meta": {
+    "invoiceNumber": "TEST-A00001",
+    "date": "2026-01-15",
+    "dueDate": "2026-01-29",
+    "status": "Draft"
+  },
+  "shop": {
+    "name": "Café “Quoted” Auto & Sons (Est. 1999)",
+    "address": "100 Example Road, Sampletown, ST 00000",
+    "phone": "(555) 010-0100",
+    "email": "shop@example.com",
+    "licenseNumber": "LIC-0001"
+  },
+  "customer": {
+    "name": "José Muñoz – Jr.",
+    "phone": "(555) 010-0199",
+    "email": "pat@example.com",
+    "address": "C:\\Users\\path (back\\slash) • unit #4"
+  },
+  "vehicle": {
+    "year": "2018",
+    "make": "Citroën",
+    "model": "日本語 🚗",
+    "vin": "5TFAX5GN0JX000000",
+    "licensePlate": "ABC1234",
+    "mileage": "84210",
+    "engine": "3.5L V6",
+    "serviceAdvisor": "A B"
+  },
+  "laborItems": [
+    {
+      "description": "Replace “smart” key (2 of 2) — programmed",
+      "technician": "Øyvind",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-1"
+    }
+  ],
+  "partItems": [
+    {
+      "partNumber": "X/1-‘A’",
+      "description": "Seal (rear) \\ gasket \t tab",
+      "quantity": 2,
+      "unitPrice": 12.5,
+      "id": "part-1"
+    }
+  ],
+  "settings": {
+    "taxRate": 0,
+    "taxLabor": false,
+    "discountType": "percent",
+    "discountValue": 0,
+    "shopSuppliesRate": 0,
+    "shopSuppliesCap": 0,
+    "hazardousWasteFee": 0,
+    "travelFee": 0,
+    "miscFee": 0
+  },
+  "notes": {
+    "customerNotes": "Line one\nLine two (with parens)\n\n\nLine four \\ slash",
+    "termsAndConditions": "Terms with “quotes” and — dashes • bullets"
+  }
+}

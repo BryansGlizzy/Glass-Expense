@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Briefcase, ChevronRight, Link as LinkIcon, Archive, Trash2, Search, Filter, Calendar, LogOut, Tag as TagIcon, BarChart3, Calculator } from 'lucide-react';
+import { Plus, Briefcase, ChevronRight, Link as LinkIcon, Archive, Trash2, Search, Filter, Calendar, LogOut, Tag as TagIcon, BarChart3, Calculator, FileText, AlertTriangle } from 'lucide-react';
+import { invoicesApi, type InvoiceRecord } from '../invoice/client';
+import { attentionItems, jobBadge, type BadgeTone } from '../invoice/attention';
+import { todayIso } from '../invoice/model';
+import { formatCurrency } from '../invoice/format';
 import { motion } from 'motion/react';
 import { generateEncryptionKey, importEncryptionKey, wrapKey } from '../utils/crypto';
 import CalendarView from '../components/CalendarView';
 import ReportsWorkspace from '../components/ReportsWorkspace';
 import TaxCenter from './TaxCenter';
+import InvoiceWorkspace from '../components/invoice/InvoiceWorkspace';
+
+type ViewMode = 'mine' | 'joined' | 'calendar' | 'reports' | 'invoices' | 'taxes' | 'archived';
+const VIEW_MODES: ViewMode[] = ['mine', 'joined', 'calendar', 'reports', 'invoices', 'taxes', 'archived'];
 
 interface Job {
   id: string;
@@ -35,23 +43,24 @@ export default function Dashboard() {
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   
   const [searchParams, setSearchParams] = useSearchParams();
-  const [viewModeState, setViewModeState] = useState<'mine' | 'joined' | 'calendar' | 'reports' | 'taxes' | 'archived'>(
-    (searchParams.get('view') as 'mine' | 'joined' | 'calendar' | 'reports' | 'taxes' | 'archived') || 'mine'
+  const [viewModeState, setViewModeState] = useState<ViewMode>(
+    (searchParams.get('view') as ViewMode) || 'mine'
   );
 
   const viewMode = viewModeState;
 
-  const setViewMode = (mode: 'mine' | 'joined' | 'calendar' | 'reports' | 'taxes' | 'archived') => {
+  const setViewMode = (mode: ViewMode) => {
     setViewModeState(mode);
     setSearchParams(prev => {
       prev.set('view', mode);
+      prev.delete('job'); prev.delete('open'); // deep links into the invoice workspace only apply once
       return prev;
     }, { replace: true });
   };
 
   useEffect(() => {
-    const view = searchParams.get('view') as 'mine' | 'joined' | 'calendar' | 'reports' | 'taxes' | 'archived';
-    if (view && ['mine', 'joined', 'calendar', 'reports', 'taxes', 'archived'].includes(view) && view !== viewModeState) {
+    const view = searchParams.get('view') as ViewMode;
+    if (view && VIEW_MODES.includes(view) && view !== viewModeState) {
       setViewModeState(view);
     }
   }, [searchParams]);
@@ -269,6 +278,26 @@ export default function Dashboard() {
       setJobs(jobs.filter(j => j.id !== jobId));
     }
   };
+  // Invoices and estimates (encrypted; decrypted here). Failures just mean no badges: the dashboard never depends on them.
+  const [docs, setDocs] = useState<InvoiceRecord[]>([]);
+  useEffect(() => {
+    if (!token) return;
+    let alive = true;
+    invoicesApi.list().then(r => { if (alive) setDocs(r); }).catch(() => {});
+    return () => { alive = false; };
+  }, [token, jobs.length]);
+  const today = todayIso();
+  const docsByJob = React.useMemo(() => {
+    const m = new Map<string, InvoiceRecord[]>();
+    for (const d of docs) { if (!m.has(d.job_id)) m.set(d.job_id, []); m.get(d.job_id)!.push(d); }
+    return m;
+  }, [docs]);
+  const attention = React.useMemo(() => attentionItems(docs, Object.fromEntries(jobs.map(j => [j.id, j.title])), today), [docs, jobs, today]);
+  const BADGE_TONE: Record<BadgeTone, string> = {
+    gray: 'text-slate-300 bg-slate-500/10 border-slate-500/20', blue: 'text-sky-300 bg-sky-500/10 border-sky-500/20', green: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
+    amber: 'text-amber-300 bg-amber-500/10 border-amber-500/20', red: 'text-red-300 bg-red-500/10 border-red-500/20',
+  };
+
   const myJobs = jobs.filter(j => j.created_by === user?.id && !j.is_archived);
   const joinedJobs = jobs.filter(j => j.created_by !== user?.id && !j.is_archived);
   const archivedJobs = jobs.filter(j => j.is_archived);
@@ -380,6 +409,13 @@ export default function Dashboard() {
             Reports
           </button>
           <button
+            onClick={() => setViewMode('invoices')}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${viewMode === 'invoices' ? 'bg-[#7c3bed]/20 text-[#7c3bed]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+          >
+            <FileText className="w-4 h-4" />
+            Invoices{attention.length > 0 && <span className="ml-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-300" title="Documents waiting for you">{attention.length}</span>}
+          </button>
+          <button
             onClick={() => setViewMode('taxes')}
             className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${viewMode === 'taxes' ? 'bg-[#7c3bed]/20 text-[#7c3bed]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
           >
@@ -395,7 +431,7 @@ export default function Dashboard() {
           </button>
         </div>
         
-        {viewMode !== 'reports' && viewMode !== 'taxes' && (
+        {viewMode !== 'reports' && viewMode !== 'taxes' && viewMode !== 'invoices' && (
           <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="relative flex-1 md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -430,8 +466,33 @@ export default function Dashboard() {
         )}
       </div>
 
+      {attention.length > 0 && (viewMode === 'mine' || viewMode === 'invoices') && (
+        <section aria-label="Needs attention" className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-200 mb-2"><AlertTriangle className="w-4 h-4" />Needs your attention ({attention.length})</h2>
+          <ul className="divide-y divide-white/5">
+            {attention.slice(0, 6).map(a => (
+              <li key={a.id}>
+                <Link to={`/dashboard?view=invoices&open=${a.recordId}`} className="flex items-center justify-between gap-3 py-2 group">
+                  <span className="min-w-0 text-sm">
+                    <span className={`mr-2 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${a.kind === 'overdue' ? 'bg-red-500/15 text-red-300' : a.kind === 'agent-final' ? 'bg-violet-500/15 text-violet-300' : 'bg-sky-500/15 text-sky-300'}`}>{a.kind === 'overdue' ? 'Overdue' : a.kind === 'agent-final' ? 'Agent finalized' : 'Review estimate'}</span>
+                    <span className="text-white font-medium">{a.title}</span>
+                    <span className="block text-xs text-gray-400 truncate">{a.detail}</span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-white shrink-0" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {attention.length > 6 && <p className="text-xs text-gray-500 mt-2">and {attention.length - 6} more. Open a job’s invoice chip to see the rest.</p>}
+        </section>
+      )}
+
       {viewMode === 'reports' ? (
         <ReportsWorkspace jobs={jobs} tags={globalTags} />
+      ) : viewMode === 'invoices' ? (
+        <React.Fragment key={`${searchParams.get('job') ?? ''}|${searchParams.get('open') ?? ''}`}>
+          <InvoiceWorkspace jobId={searchParams.get('job')} openId={searchParams.get('open')} />
+        </React.Fragment>
       ) : viewMode === 'taxes' ? (
         <TaxCenter />
       ) : viewMode === 'calendar' ? (
@@ -517,6 +578,14 @@ export default function Dashboard() {
                       {job.invoice_number}
                     </span>
                   )}
+                  {(() => {
+                    const badge = jobBadge(docsByJob.get(job.id) ?? [], today);
+                    return badge ? (
+                      <span className={`text-[11px] font-semibold border px-2 py-0.5 rounded-md inline-flex items-center gap-1 ${BADGE_TONE[badge.tone]}`} title={`${badge.count > 1 ? `${badge.count} documents; latest: ` : ''}${badge.label}`}>
+                        <FileText className="w-3 h-3" />{badge.label}<span className="font-mono opacity-80">{formatCurrency(badge.total)}</span>
+                      </span>
+                    ) : null;
+                  })()}
                   {job.invoice_tag && (
                     <span className="text-[11px] font-semibold text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md flex items-center gap-1" title={`Job Category / Tag: ${job.invoice_tag}`}>
                       <TagIcon className="w-3 h-3 text-purple-400" />

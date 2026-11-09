@@ -23,7 +23,7 @@ export function registerSettingsRoutes(app: Express) {
     res.json(rows.map(({ agent_scope, ...r }) => {
       let scope: any = null;
       try { scope = agent_scope ? JSON.parse(agent_scope) : null; } catch { /* ignore */ }
-      return { ...r, agent_access: scope?.access ?? null, agent_all_jobs: scope ? Boolean(scope.all_jobs) : null };
+      return { ...r, agent_access: scope?.access ?? null, agent_all_jobs: scope ? Boolean(scope.all_jobs) : null, agent_invoices: scope ? (scope.invoices ?? 'none') : null, agent_research: scope ? Boolean(scope.research) : null };
     }));
   });
 

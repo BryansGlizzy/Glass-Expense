@@ -57,6 +57,7 @@ export function registerAdminRoutes(app: Express) {
         if (jobIds.length > 0) {
           const ph = jobIds.map(() => '?').join(',');
           collect(`SELECT receipt_url FROM expenses WHERE job_id IN (${ph})`, ...jobIds);
+          db.prepare(`DELETE FROM invoices WHERE job_id IN (${ph})`).run(...jobIds);
           db.prepare(`DELETE FROM wishlist_items WHERE job_id IN (${ph})`).run(...jobIds);
           db.prepare(`DELETE FROM subscriptions WHERE job_id IN (${ph})`).run(...jobIds);
           db.prepare(`DELETE FROM job_users WHERE job_id IN (${ph})`).run(...jobIds);
@@ -65,6 +66,7 @@ export function registerAdminRoutes(app: Express) {
         }
         collect('SELECT receipt_url FROM expenses WHERE user_id = ?', userId);
         db.prepare('DELETE FROM expenses WHERE user_id = ?').run(userId);
+        db.prepare('DELETE FROM invoices WHERE user_id = ?').run(userId);
         db.prepare('DELETE FROM wishlist_items WHERE user_id = ?').run(userId);
         db.prepare('DELETE FROM subscriptions WHERE user_id = ?').run(userId);
         db.prepare('DELETE FROM tags WHERE user_id = ?').run(userId);

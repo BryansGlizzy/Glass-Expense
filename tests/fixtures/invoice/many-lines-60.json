@@ -1,0 +1,470 @@
+{
+  "meta": {
+    "invoiceNumber": "TEST-A00001",
+    "date": "2026-01-15",
+    "dueDate": "2026-01-29",
+    "status": "Draft"
+  },
+  "shop": {
+    "name": "Example Auto Service",
+    "address": "100 Example Road, Sampletown, ST 00000",
+    "phone": "(555) 010-0100",
+    "email": "shop@example.com",
+    "licenseNumber": "LIC-0001"
+  },
+  "customer": {
+    "name": "Pat Example",
+    "phone": "(555) 010-0199",
+    "email": "pat@example.com",
+    "address": "200 Sample Street, Sampletown, ST 00000"
+  },
+  "vehicle": {
+    "year": "2018",
+    "make": "Toyota",
+    "model": "Tacoma",
+    "vin": "5TFAX5GN0JX000000",
+    "licensePlate": "ABC1234",
+    "mileage": "84210",
+    "engine": "3.5L V6",
+    "serviceAdvisor": "Sam"
+  },
+  "laborItems": [
+    {
+      "description": "Service task 1",
+      "technician": "Tech 1",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-1"
+    },
+    {
+      "description": "Service task 2",
+      "technician": "Tech 2",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-2"
+    },
+    {
+      "description": "Service task 3",
+      "technician": "Tech 3",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-3"
+    },
+    {
+      "description": "Service task 4",
+      "technician": "Tech 1",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-4"
+    },
+    {
+      "description": "Service task 5",
+      "technician": "Tech 2",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-5"
+    },
+    {
+      "description": "Service task 6",
+      "technician": "Tech 3",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-6"
+    },
+    {
+      "description": "Service task 7",
+      "technician": "Tech 1",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-7"
+    },
+    {
+      "description": "Service task 8",
+      "technician": "Tech 2",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-8"
+    },
+    {
+      "description": "Service task 9",
+      "technician": "Tech 3",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-9"
+    },
+    {
+      "description": "Service task 10",
+      "technician": "Tech 1",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-10"
+    },
+    {
+      "description": "Service task 11",
+      "technician": "Tech 2",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-11"
+    },
+    {
+      "description": "Service task 12",
+      "technician": "Tech 3",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-12"
+    },
+    {
+      "description": "Service task 13",
+      "technician": "Tech 1",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-13"
+    },
+    {
+      "description": "Service task 14",
+      "technician": "Tech 2",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-14"
+    },
+    {
+      "description": "Service task 15",
+      "technician": "Tech 3",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-15"
+    },
+    {
+      "description": "Service task 16",
+      "technician": "Tech 1",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-16"
+    },
+    {
+      "description": "Service task 17",
+      "technician": "Tech 2",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-17"
+    },
+    {
+      "description": "Service task 18",
+      "technician": "Tech 3",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-18"
+    },
+    {
+      "description": "Service task 19",
+      "technician": "Tech 1",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-19"
+    },
+    {
+      "description": "Service task 20",
+      "technician": "Tech 2",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-20"
+    },
+    {
+      "description": "Service task 21",
+      "technician": "Tech 3",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-21"
+    },
+    {
+      "description": "Service task 22",
+      "technician": "Tech 1",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-22"
+    },
+    {
+      "description": "Service task 23",
+      "technician": "Tech 2",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-23"
+    },
+    {
+      "description": "Service task 24",
+      "technician": "Tech 3",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-24"
+    },
+    {
+      "description": "Service task 25",
+      "technician": "Tech 1",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-25"
+    },
+    {
+      "description": "Service task 26",
+      "technician": "Tech 2",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-26"
+    },
+    {
+      "description": "Service task 27",
+      "technician": "Tech 3",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-27"
+    },
+    {
+      "description": "Service task 28",
+      "technician": "Tech 1",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-28"
+    },
+    {
+      "description": "Service task 29",
+      "technician": "Tech 2",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-29"
+    },
+    {
+      "description": "Service task 30",
+      "technician": "Tech 3",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-30"
+    },
+    {
+      "description": "Service task 31",
+      "technician": "Tech 1",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-31"
+    },
+    {
+      "description": "Service task 32",
+      "technician": "Tech 2",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-32"
+    },
+    {
+      "description": "Service task 33",
+      "technician": "Tech 3",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-33"
+    },
+    {
+      "description": "Service task 34",
+      "technician": "Tech 1",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-34"
+    },
+    {
+      "description": "Service task 35",
+      "technician": "Tech 2",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-35"
+    },
+    {
+      "description": "Service task 36",
+      "technician": "Tech 3",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-36"
+    },
+    {
+      "description": "Service task 37",
+      "technician": "Tech 1",
+      "hours": 0.5,
+      "rate": 55,
+      "id": "labor-37"
+    },
+    {
+      "description": "Service task 38",
+      "technician": "Tech 2",
+      "hours": 0.75,
+      "rate": 55,
+      "id": "labor-38"
+    },
+    {
+      "description": "Service task 39",
+      "technician": "Tech 3",
+      "hours": 1,
+      "rate": 55,
+      "id": "labor-39"
+    },
+    {
+      "description": "Service task 40",
+      "technician": "Tech 1",
+      "hours": 1.25,
+      "rate": 55,
+      "id": "labor-40"
+    }
+  ],
+  "partItems": [
+    {
+      "partNumber": "PN-1000",
+      "description": "Part item 1",
+      "quantity": 1,
+      "unitPrice": 4.5,
+      "id": "part-1"
+    },
+    {
+      "partNumber": "PN-1001",
+      "description": "Part item 2",
+      "quantity": 2,
+      "unitPrice": 5.75,
+      "id": "part-2"
+    },
+    {
+      "partNumber": "PN-1002",
+      "description": "Part item 3",
+      "quantity": 3,
+      "unitPrice": 7,
+      "id": "part-3"
+    },
+    {
+      "partNumber": "PN-1003",
+      "description": "Part item 4",
+      "quantity": 1,
+      "unitPrice": 8.25,
+      "id": "part-4"
+    },
+    {
+      "partNumber": "PN-1004",
+      "description": "Part item 5",
+      "quantity": 2,
+      "unitPrice": 9.5,
+      "id": "part-5"
+    },
+    {
+      "partNumber": "PN-1005",
+      "description": "Part item 6",
+      "quantity": 3,
+      "unitPrice": 10.75,
+      "id": "part-6"
+    },
+    {
+      "partNumber": "PN-1006",
+      "description": "Part item 7",
+      "quantity": 1,
+      "unitPrice": 12,
+      "id": "part-7"
+    },
+    {
+      "partNumber": "PN-1007",
+      "description": "Part item 8",
+      "quantity": 2,
+      "unitPrice": 13.25,
+      "id": "part-8"
+    },
+    {
+      "partNumber": "PN-1008",
+      "description": "Part item 9",
+      "quantity": 3,
+      "unitPrice": 14.5,
+      "id": "part-9"
+    },
+    {
+      "partNumber": "PN-1009",
+      "description": "Part item 10",
+      "quantity": 1,
+      "unitPrice": 15.75,
+      "id": "part-10"
+    },
+    {
+      "partNumber": "PN-1010",
+      "description": "Part item 11",
+      "quantity": 2,
+      "unitPrice": 17,
+      "id": "part-11"
+    },
+    {
+      "partNumber": "PN-1011",
+      "description": "Part item 12",
+      "quantity": 3,
+      "unitPrice": 18.25,
+      "id": "part-12"
+    },
+    {
+      "partNumber": "PN-1012",
+      "description": "Part item 13",
+      "quantity": 1,
+      "unitPrice": 19.5,
+      "id": "part-13"
+    },
+    {
+      "partNumber": "PN-1013",
+      "description": "Part item 14",
+      "quantity": 2,
+      "unitPrice": 20.75,
+      "id": "part-14"
+    },
+    {
+      "partNumber": "PN-1014",
+      "description": "Part item 15",
+      "quantity": 3,
+      "unitPrice": 22,
+      "id": "part-15"
+    },
+    {
+      "partNumber": "PN-1015",
+      "description": "Part item 16",
+      "quantity": 1,
+      "unitPrice": 23.25,
+      "id": "part-16"
+    },
+    {
+      "partNumber": "PN-1016",
+      "description": "Part item 17",
+      "quantity": 2,
+      "unitPrice": 24.5,
+      "id": "part-17"
+    },
+    {
+      "partNumber": "PN-1017",
+      "description": "Part item 18",
+      "quantity": 3,
+      "unitPrice": 25.75,
+      "id": "part-18"
+    },
+    {
+      "partNumber": "PN-1018",
+      "description": "Part item 19",
+      "quantity": 1,
+      "unitPrice": 27,
+      "id": "part-19"
+    },
+    {
+      "partNumber": "PN-1019",
+      "description": "Part item 20",
+      "quantity": 2,
+      "unitPrice": 28.25,
+      "id": "part-20"
+    }
+  ],
+  "settings": {
+    "taxRate": 6,
+    "taxLabor": false,
+    "discountType": "percent",
+    "discountValue": 0,
+    "shopSuppliesRate": 5,
+    "shopSuppliesCap": 35,
+    "hazardousWasteFee": 0,
+    "travelFee": 0,
+    "miscFee": 0
+  },
+  "notes": {
+    "customerNotes": "",
+    "termsAndConditions": "Payment due on receipt."
+  }
+}

@@ -19,6 +19,7 @@ import Pricing from './pages/Pricing';
 import ApiDocs from './pages/ApiDocs';
 import Legal from './pages/Legal';
 import TaxCenter from './pages/TaxCenter';
+import Invoices from './pages/Invoices';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, isVaultLocked } = useAuth();
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/reports" element={<Navigate to="/dashboard?view=reports" replace />} />
             <Route path="/taxes" element={<TaxCenter />} />
+            <Route path="/invoices" element={<Invoices />} />
             <Route path="/jobs/:id" element={<Job />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<AdminPortal />} />

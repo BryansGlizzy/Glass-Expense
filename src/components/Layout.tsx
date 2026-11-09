@@ -1,10 +1,11 @@
 import { wrapSocket } from '../e2ee/socket';
 import { runDueSubscriptions } from '../e2ee/subscriptions';
+import { maintainInvoices } from '../invoice/maintain';
 import { scheduleSnapshotRefresh } from '../e2ee/reportSnapshot';
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Home, ShieldAlert, Menu, X, Settings as SettingsIcon, CreditCard, Terminal, Calculator } from 'lucide-react';
+import { LogOut, Home, ShieldAlert, Menu, X, Settings as SettingsIcon, CreditCard, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 
@@ -37,6 +38,7 @@ export default function Layout() {
         if (!jobs || !Array.isArray(jobs)) return;
         socket = wrapSocket(io(window.location.origin, { auth: { token } }));
         void runDueSubscriptions();
+        void maintainInvoices(); // finishes agent-made invoices and drafts estimates for API-posted jobs (once per session)
         scheduleSnapshotRefresh(1500);
         
         jobs.forEach((job: any) => {
@@ -100,17 +102,6 @@ export default function Layout() {
                   <span>Admin</span>
                 </Link>
               )}
-
-              <Link
-                to="/taxes"
-                className={`flex items-center space-x-2 text-sm transition-colors ${
-                  location.pathname === '/taxes' ? 'text-[#7c3bed] font-medium' : 'text-gray-400 hover:text-white'
-                }`}
-                title="Tax Center & Schedule C"
-              >
-                <Calculator className="w-4 h-4" />
-                <span>Taxes</span>
-              </Link>
 
               <Link
                 to="/settings"
@@ -249,16 +240,6 @@ export default function Layout() {
                         <span className="font-medium">Admin Portal</span>
                       </Link>
                     )}
-
-                    <Link
-                      to="/taxes"
-                      className="flex items-center space-x-3 p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all active:scale-[0.98]"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-[#7c3bed]/10 flex items-center justify-center">
-                        <Calculator className="w-4 h-4 text-[#7c3bed]" />
-                      </div>
-                      <span className="font-medium">Tax Center</span>
-                    </Link>
 
                     <Link
                       to="/settings"

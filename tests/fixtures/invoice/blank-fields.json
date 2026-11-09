@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "invoiceNumber": "",
+    "date": "",
+    "dueDate": "",
+    "status": ""
+  },
+  "shop": {
+    "name": "",
+    "address": "",
+    "phone": "",
+    "email": "",
+    "licenseNumber": ""
+  },
+  "customer": {
+    "name": "",
+    "phone": "",
+    "email": "",
+    "address": ""
+  },
+  "vehicle": {
+    "year": "",
+    "make": "",
+    "model": "",
+    "vin": "",
+    "licensePlate": "",
+    "mileage": "",
+    "engine": "",
+    "serviceAdvisor": ""
+  },
+  "laborItems": [],
+  "partItems": [],
+  "settings": {
+    "taxRate": 0,
+    "taxLabor": false,
+    "discountType": "percent",
+    "discountValue": 0,
+    "shopSuppliesRate": 0,
+    "shopSuppliesCap": 0,
+    "hazardousWasteFee": 0,
+    "travelFee": 0,
+    "miscFee": 0
+  },
+  "notes": {
+    "customerNotes": "",
+    "termsAndConditions": ""
+  }
+}

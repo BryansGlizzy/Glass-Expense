@@ -5,17 +5,23 @@ import {
   JobBlob, JobView, emptyJobBlob, listJobs, getJob, writeJob, listExpenses, getBlob, uuid, encExpense, toExpenseBlob,
 } from '../store';
 import { nextInvoiceForTag } from '../invoice';
+import { normalizeSettings } from '../../invoice/settings';
 import { Route, Req, Res, ok, bad, NotFound, Forbidden } from './types';
 
 const clean = (v: any, max = 5000): string | null => {
   if (v === undefined || v === null || v === '') return null;
   return String(v).slice(0, max);
 };
+/** Accepts a parsed intake only in the documented shape and size; anything else is dropped (null clears it). */
+const cleanIntake = (v: any): JobBlob['intake'] => {
+  if (!v || typeof v !== 'object' || Array.isArray(v) || v.v !== 1) return null;
+  try { const text = JSON.stringify(v); return text.length > 20000 ? null : JSON.parse(text); } catch { return null; }
+};
 const date = (v: any): string | null => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
 
 const blobOf = (j: JobView): JobBlob => ({
   title: j.title, description: j.description, mode: j.mode, client_name: j.client_name, client_address: j.client_address,
-  client_email: j.client_email, job_rate: j.job_rate, invoice_notes: j.invoice_notes, invoice_tag: j.invoice_tag,
+  client_email: j.client_email, client_phone: j.client_phone ?? null, intake: j.intake ?? null, job_rate: j.job_rate, invoice_notes: j.invoice_notes, invoice_tag: j.invoice_tag,
   invoice_seq: j.invoice_seq, invoice_number: j.invoice_number, google_sync_expenses: j.google_sync_expenses,
 });
 
@@ -23,7 +29,8 @@ async function ownedJobs(): Promise<JobView[]> {
   return (await listJobs()).filter(j => j.role === 'owner' && !j.locked);
 }
 async function defaultPrefix(): Promise<string> {
-  return (await getBlob<any>('invoice_template', null))?.default_prefix || 'INV';
+  const t = await getBlob<any>('invoice_template', null);
+  return (t?.invoicing ? normalizeSettings(t.invoicing).numbering.prefix : t?.default_prefix) || 'INV';
 }
 
 async function loadJobOr404(id: string): Promise<JobView> {
@@ -70,6 +77,7 @@ export const jobRoutes: Route[] = [
     const blob: JobBlob = {
       ...emptyJobBlob(), title, description: clean(body.description, 100000), mode: body.mode === 'budget' ? 'budget' : 'expense',
       client_name: clean(body.client_name, 200), client_address: clean(body.client_address, 500), client_email: clean(body.client_email, 254),
+      client_phone: clean(body.client_phone, 40), intake: cleanIntake(body.intake),
       job_rate: Number(body.job_rate) || 0, invoice_notes: clean(body.invoice_notes), invoice_tag: cleanTag, invoice_seq: seq, invoice_number: invoiceNumber,
     };
     const result = await writeJob(id, blob, { start_date: date(body.start_date), end_date: date(body.end_date) }, { create: { jobKey } });
@@ -94,6 +102,8 @@ export const jobRoutes: Route[] = [
     if (body.client_name !== undefined) next.client_name = clean(body.client_name, 200);
     if (body.client_address !== undefined) next.client_address = clean(body.client_address, 500);
     if (body.client_email !== undefined) next.client_email = clean(body.client_email, 254);
+    if (body.client_phone !== undefined) next.client_phone = clean(body.client_phone, 40);
+    if (body.intake !== undefined) next.intake = cleanIntake(body.intake);
     if (body.job_rate !== undefined) next.job_rate = Number(body.job_rate) || 0;
     if (body.invoice_notes !== undefined) next.invoice_notes = clean(body.invoice_notes);
     if (body.google_sync_expenses !== undefined) next.google_sync_expenses = body.google_sync_expenses ? 1 : 0;

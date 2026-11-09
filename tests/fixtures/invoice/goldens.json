@@ -1,0 +1,260 @@
+{
+  "oracle": {
+    "model.js": "0a858dfbadb79603a3cc9f9e0b954bbd46987ad00e471357e03398925126ecb4",
+    "pdf.js": "70696f979f7fb4d7d73e4a4a857919b2df6ede7bbc54a25d887c049dc3af27fe"
+  },
+  "goldens": {
+    "sample": {
+      "pdfSha256": "d09207feae0a7bc304854bf0b0336ef6dbc9b75fd37cf908f181b339a427120e",
+      "pdfLength": 9329,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 104.5,
+        "partsSubtotal": 60.49,
+        "subtotal": 164.99,
+        "shopSuppliesFee": 5.23,
+        "hazardousWasteFee": 3.5,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 60.49,
+        "taxAmount": 4.99,
+        "grandTotal": 178.71
+      }
+    },
+    "empty": {
+      "pdfSha256": "b8d890422759755fb5c06db2d7d779171ec03484a1dda8f9c251bc72db5122d7",
+      "pdfLength": 7238,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 0,
+        "partsSubtotal": 0,
+        "subtotal": 0,
+        "shopSuppliesFee": 0,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 0,
+        "taxAmount": 0,
+        "grandTotal": 0
+      }
+    },
+    "blank-fields": {
+      "pdfSha256": "506aa5ecb0d12c1b781283a97bcc8abfe3630f70d6d1bc9c8a968d66f15f2e62",
+      "pdfLength": 6807,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 0,
+        "partsSubtotal": 0,
+        "subtotal": 0,
+        "shopSuppliesFee": 0,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 0,
+        "taxAmount": 0,
+        "grandTotal": 0
+      }
+    },
+    "basic-tax-parts-only": {
+      "pdfSha256": "c3a9579318abe737dc02059fd6c57288e75cd9dbb476171e5c48434c815f92ed",
+      "pdfLength": 9482,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 68.75,
+        "partsSubtotal": 37,
+        "subtotal": 105.75,
+        "shopSuppliesFee": 3.44,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 37,
+        "taxAmount": 2.22,
+        "grandTotal": 111.41
+      }
+    },
+    "every-fee": {
+      "pdfSha256": "6f8eb38b5710f2d58e12285d43dd3c7ecdc2cd9718e91831ecf90c434542b136",
+      "pdfLength": 9316,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 123.75,
+        "partsSubtotal": 16,
+        "subtotal": 139.75,
+        "shopSuppliesFee": 12.38,
+        "hazardousWasteFee": 3.5,
+        "travelFee": 45,
+        "miscFee": 7.25,
+        "discountAmount": 5,
+        "taxableAmount": 134.75,
+        "taxAmount": 11.12,
+        "grandTotal": 214
+      }
+    },
+    "discount-percent": {
+      "pdfSha256": "fa8ccf75a9cfb726a1d067a3dba58e0c39b41b06808f4451aed9a7bece7bf6ab",
+      "pdfLength": 8861,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 68.75,
+        "partsSubtotal": 16,
+        "subtotal": 84.75,
+        "shopSuppliesFee": 3.44,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 10.59,
+        "taxableAmount": 74.16,
+        "taxAmount": 5.19,
+        "grandTotal": 82.79
+      }
+    },
+    "discount-fixed-clamped": {
+      "pdfSha256": "2a529861fd5aaf656516428b077d26aeaf15db5dae34371b6252fdf319ade08f",
+      "pdfLength": 7838,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 27.5,
+        "partsSubtotal": 4.5,
+        "subtotal": 32,
+        "shopSuppliesFee": 0,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 32,
+        "taxableAmount": 0,
+        "taxAmount": 0,
+        "grandTotal": 0
+      }
+    },
+    "zero-fees": {
+      "pdfSha256": "4df12fd49e2d529c312cb7d295d969b5731db2349759873b41dd10ce358221fb",
+      "pdfLength": 7263,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 0,
+        "partsSubtotal": 0,
+        "subtotal": 0,
+        "shopSuppliesFee": 0,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 0,
+        "taxAmount": 0,
+        "grandTotal": 0
+      }
+    },
+    "estimate-status": {
+      "pdfSha256": "4e86ba88dfe5eb904a8890b97d01a26340e9bb2932ff20120db8720e45aa5daf",
+      "pdfLength": 8073,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 68.75,
+        "partsSubtotal": 0,
+        "subtotal": 68.75,
+        "shopSuppliesFee": 0,
+        "hazardousWasteFee": 0,
+        "travelFee": 45,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 0,
+        "taxAmount": 0,
+        "grandTotal": 113.75
+      }
+    },
+    "many-lines-60": {
+      "pdfSha256": "bf907b2792aceecc24feca7afce615caa9ee09c1eb654d6eb8257af72619665f",
+      "pdfLength": 37230,
+      "pages": 3,
+      "totals": {
+        "laborSubtotal": 1925,
+        "partsSubtotal": 643,
+        "subtotal": 2568,
+        "shopSuppliesFee": 35,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 643,
+        "taxAmount": 38.58,
+        "grandTotal": 2641.58
+      }
+    },
+    "long-notes": {
+      "pdfSha256": "f8793a130255cd78e5e76a4bfd62fe7d8392b00f305e67431761bb18a71b960c",
+      "pdfLength": 17157,
+      "pages": 2,
+      "totals": {
+        "laborSubtotal": 68.75,
+        "partsSubtotal": 4.5,
+        "subtotal": 73.25,
+        "shopSuppliesFee": 0,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 4.5,
+        "taxAmount": 0,
+        "grandTotal": 73.25
+      }
+    },
+    "odd-characters": {
+      "pdfSha256": "e8191b7804e21ac82041352d31dbfcefd7e18436aff8c70c11bca7d65cf181f4",
+      "pdfLength": 8290,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 68.75,
+        "partsSubtotal": 25,
+        "subtotal": 93.75,
+        "shopSuppliesFee": 0,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 25,
+        "taxAmount": 0,
+        "grandTotal": 93.75
+      }
+    },
+    "float-edge": {
+      "pdfSha256": "ede0663f4f033a7a4513e7f1af61dd447889201ed5df0cc0e57867b96379271d",
+      "pdfLength": 8318,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 10.07,
+        "partsSubtotal": 1.01,
+        "subtotal": 11.08,
+        "shopSuppliesFee": 0.33,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 11.08,
+        "taxAmount": 0.98,
+        "grandTotal": 12.39
+      }
+    },
+    "large-amounts": {
+      "pdfSha256": "34cb12f5169ff5234b0bc83c78126c318a31ad9950e885b9c5b63b7c8c57efe0",
+      "pdfLength": 8387,
+      "pages": 1,
+      "totals": {
+        "laborSubtotal": 22260,
+        "partsSubtotal": 23813.99,
+        "subtotal": 46073.99,
+        "shopSuppliesFee": 0,
+        "hazardousWasteFee": 0,
+        "travelFee": 0,
+        "miscFee": 0,
+        "discountAmount": 0,
+        "taxableAmount": 23813.99,
+        "taxAmount": 1428.84,
+        "grandTotal": 47502.83
+      }
+    }
+  }
+}

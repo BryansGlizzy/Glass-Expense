@@ -14,7 +14,7 @@ type Progress = (message: string, fraction: number) => void;
 
 const jobBlobFrom = (j: any): JobBlob => ({
   title: j.title || 'Untitled job', description: j.description ?? null, mode: j.mode === 'budget' ? 'budget' : 'expense',
-  client_name: j.client_name ?? null, client_address: j.client_address ?? null, client_email: j.client_email ?? null, job_rate: Number(j.job_rate) || 0,
+  client_name: j.client_name ?? null, client_address: j.client_address ?? null, client_email: j.client_email ?? null, client_phone: null, intake: null, job_rate: Number(j.job_rate) || 0,
   invoice_notes: j.invoice_notes ?? null, invoice_tag: j.invoice_tag ?? null, invoice_seq: j.invoice_seq ?? null, invoice_number: j.invoice_number ?? null,
   google_sync_expenses: j.google_sync_expenses ? 1 : 0,
 });

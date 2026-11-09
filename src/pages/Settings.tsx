@@ -4,6 +4,8 @@ import { changePassword as changePasswordE2ee } from '../e2ee/auth';
 import SecurityCode from '../components/SecurityCode';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import InvoiceSettings from '../components/settings/InvoiceSettings';
+import AiProfilesSettings from '../components/settings/AiProfilesSettings';
 import { Link, useSearchParams, useLocation } from 'react-router';
 import {
   Key,
@@ -38,6 +40,8 @@ interface ApiKey {
   created_at: string;
   agent_access?: 'read' | 'write' | null;
   agent_all_jobs?: boolean | null;
+  agent_invoices?: 'none' | 'read' | 'draft' | 'finalize' | null;
+  agent_research?: boolean | null;
 }
 
 interface UserTag {
@@ -141,6 +145,8 @@ export default function Settings() {
   const [agentEnabled, setAgentEnabled] = useState(false);
   const [agentAccess, setAgentAccess] = useState<'read' | 'write'>('read');
   const [agentAllJobs, setAgentAllJobs] = useState(false);
+  const [agentInvoices, setAgentInvoices] = useState<'none' | 'read' | 'draft' | 'finalize'>('none');
+  const [agentResearch, setAgentResearch] = useState(false);
   const [agentJobIds, setAgentJobIds] = useState<string[]>([]);
   const [agentAck, setAgentAck] = useState(false);
   const [agentJobs, setAgentJobs] = useState<Array<{ id: string; title: string; locked?: boolean }>>([]);
@@ -204,17 +210,6 @@ export default function Settings() {
   const [subscriptionTestSuccess, setSubscriptionTestSuccess] = useState(false);
   const [subscriptionTestError, setSubscriptionTestError] = useState('');
 
-  // Invoice & Company Settings
-  const [companyName, setCompanyName] = useState('');
-  const [companyAddress, setCompanyAddress] = useState('');
-  const [companyLogoUrl, setCompanyLogoUrl] = useState('');
-  const [defaultHourlyRate, setDefaultHourlyRate] = useState('');
-  const [defaultInvoicePrefix, setDefaultInvoicePrefix] = useState('INV');
-  const [footerNotes, setFooterNotes] = useState('');
-  const [isSavingInvoiceSettings, setIsSavingInvoiceSettings] = useState(false);
-  const [invoiceSaveSuccess, setInvoiceSaveSuccess] = useState(false);
-  const [invoiceSaveError, setInvoiceSaveError] = useState('');
-
   const { token, user, masterKey, isVaultLocked, setMasterKey, login } = useAuth();
 
   useEffect(() => {
@@ -223,7 +218,6 @@ export default function Settings() {
     fetchTags();
     fetchReportSettings();
     fetchGoogleSettings();
-    fetchInvoiceTemplate();
 
     if (searchParams.get('google_sync') === 'success') {
       setActiveTab('integrations');
@@ -261,65 +255,6 @@ export default function Settings() {
   const fetchTags = async () => {
     const res = await fetch('/api/tags', { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) setTags(await res.json());
-  };
-
-  const fetchInvoiceTemplate = async () => {
-    try {
-      const res = await fetch('/api/invoice-templates', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data) {
-          setCompanyName(data.company_name || '');
-          setCompanyAddress(data.company_address || '');
-          setCompanyLogoUrl(data.company_logo_url || '');
-          setDefaultHourlyRate(data.default_hourly_rate ? data.default_hourly_rate.toString() : '');
-          setDefaultInvoicePrefix(data.default_prefix || 'INV');
-          setFooterNotes(data.footer_notes || '');
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load invoice template', e);
-    }
-  };
-
-  const handleSaveInvoiceSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingInvoiceSettings(true);
-    setInvoiceSaveError('');
-    try {
-      const res = await fetch('/api/invoice-templates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          company_name: companyName,
-          company_address: companyAddress,
-          company_logo_url: companyLogoUrl,
-          default_hourly_rate: parseFloat(defaultHourlyRate) || 0,
-          default_prefix: defaultInvoicePrefix.trim().toUpperCase() || 'INV',
-          footer_notes: footerNotes
-        })
-      });
-      if (res.ok) {
-        const result = await res.json();
-        if (result.template) {
-          setDefaultInvoicePrefix(result.template.default_prefix || 'INV');
-        }
-        setInvoiceSaveSuccess(true);
-        setTimeout(() => setInvoiceSaveSuccess(false), 3000);
-      } else {
-        const err = await res.json();
-        setInvoiceSaveError(err.error || 'Failed to save invoice settings');
-      }
-    } catch {
-      setInvoiceSaveError('Network error while saving invoice settings');
-    } finally {
-      setIsSavingInvoiceSettings(false);
-    }
   };
 
   const fetchReportSettings = async () => {
@@ -620,7 +555,7 @@ export default function Settings() {
       .catch(() => {});
   }, [agentEnabled]);
 
-  const resetAgentForm = () => { setAgentEnabled(false); setAgentAccess('read'); setAgentAllJobs(false); setAgentJobIds([]); setAgentAck(false); };
+  const resetAgentForm = () => { setAgentEnabled(false); setAgentAccess('read'); setAgentAllJobs(false); setAgentJobIds([]); setAgentAck(false); setAgentInvoices('none'); setAgentResearch(false); };
 
   const handleCreateKey = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -638,13 +573,13 @@ export default function Settings() {
         },
         body: JSON.stringify({
           name: newKeyName,
-          ...(agentEnabled ? { agent: { access: agentAccess, all_jobs: agentAllJobs, job_ids: agentAllJobs ? undefined : agentJobIds } } : {}),
+          ...(agentEnabled ? { agent: { access: agentAccess, all_jobs: agentAllJobs, job_ids: agentAllJobs ? undefined : agentJobIds, invoices: agentAccess === 'write' ? agentInvoices : (agentInvoices === 'read' ? 'read' : 'none'), research: agentAccess === 'write' && agentResearch } } : {}),
         })
       });
 
       if (res.ok) {
         const data = await res.json();
-        setKeys([{ ...data.key, agent_access: agentEnabled ? agentAccess : null, agent_all_jobs: agentEnabled ? agentAllJobs : null }, ...keys]);
+        setKeys([{ ...data.key, agent_access: agentEnabled ? agentAccess : null, agent_all_jobs: agentEnabled ? agentAllJobs : null, agent_invoices: agentEnabled ? (agentAccess === 'write' ? agentInvoices : (agentInvoices === 'read' ? 'read' : 'none')) : null, agent_research: agentEnabled && agentAccess === 'write' && agentResearch }, ...keys]);
         setGeneratedKey({ rawKey: data.rawKey, name: data.key.name, agent: agentEnabled ? agentAccess : undefined });
         setNewKeyName('');
         resetAgentForm();
@@ -958,142 +893,8 @@ export default function Settings() {
           )}
 
           {/* TAB 2: COMPANY & INVOICE SETTINGS */}
-          {activeTab === 'invoice' && (
-            <div id="invoice" className="bg-[#1c172d]/60 border border-white/5 rounded-3xl p-6 sm:p-8 backdrop-blur-md">
-              <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-indigo-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold text-white">Company & Invoice Settings</h2>
-                    <p className="text-sm text-gray-400">Configure global business information, invoice prefix, and payment terms</p>
-                  </div>
-                </div>
-                {invoiceSaveSuccess && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-xl text-xs font-medium"
-                  >
-                    <Check className="w-4 h-4" /> Saved Successfully
-                  </motion.div>
-                )}
-              </div>
-
-              {invoiceSaveError && (
-                <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-2xl text-sm flex items-center gap-3">
-                  <AlertTriangle className="w-5 h-5 shrink-0" />
-                  <span>{invoiceSaveError}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleSaveInvoiceSettings} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="md:col-span-2 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Company Name</label>
-                      <input
-                        type="text"
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        placeholder="e.g. Acme Contracting & Design LLC"
-                        className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-[#7c3bed]/50"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Default Invoice Prefix</label>
-                        <input
-                          type="text"
-                          value={defaultInvoicePrefix}
-                          onChange={(e) => setDefaultInvoicePrefix(e.target.value.toUpperCase())}
-                          placeholder="INV"
-                          maxLength={10}
-                          className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[#7c3bed]/50"
-                        />
-                        <p className="text-[11px] text-gray-500 mt-1.5">Default prefix used when no job tag is assigned (e.g. INV-A00001).</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Default Hourly Labor Rate ($)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={defaultHourlyRate}
-                          onChange={(e) => setDefaultHourlyRate(e.target.value)}
-                          placeholder="75.00"
-                          className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-[#7c3bed]/50"
-                        />
-                        <p className="text-[11px] text-gray-500 mt-1.5">Default hourly rate applied when creating new jobs.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Logo URL & Preview */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Company Logo URL</label>
-                    <input
-                      type="url"
-                      value={companyLogoUrl}
-                      onChange={(e) => setCompanyLogoUrl(e.target.value)}
-                      placeholder="https://example.com/logo.png"
-                      className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3bed]/50 mb-2"
-                    />
-                    <div className="w-full h-28 border border-dashed border-white/10 rounded-xl bg-black/20 flex items-center justify-center overflow-hidden p-2">
-                      {companyLogoUrl ? (
-                        <img
-                          src={companyLogoUrl}
-                          alt="Logo Preview"
-                          className="max-h-full max-w-full object-contain"
-                          onError={(e) => {
-                            (e.target as any).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <span className="text-xs text-gray-500">Logo preview will appear here</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Company Address & Contact</label>
-                    <textarea
-                      value={companyAddress}
-                      onChange={(e) => setCompanyAddress(e.target.value)}
-                      rows={3}
-                      placeholder="123 Commercial Blvd, Suite 200&#10;Austin, TX 78701&#10;billing@acme.com | (555) 019-2834"
-                      className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3bed]/50 resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Default Footer Terms & Payment Notes</label>
-                    <textarea
-                      value={footerNotes}
-                      onChange={(e) => setFooterNotes(e.target.value)}
-                      rows={3}
-                      placeholder="Payment is due within 30 days of invoice date. Thank you for your business!"
-                      className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3bed]/50 resize-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    disabled={isSavingInvoiceSettings}
-                    className="px-6 py-2.5 rounded-xl text-sm font-medium bg-[#7c3bed] hover:bg-[#6b33cc] text-white transition-colors shadow-lg shadow-[#7c3bed]/20 flex items-center gap-2 disabled:opacity-50"
-                  >
-                    {isSavingInvoiceSettings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    <span>{isSavingInvoiceSettings ? 'Saving...' : 'Save Invoice Settings'}</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
+          {/* The old "Company & Invoice" form is gone: everything it held (name, address, logo, rate, prefix, footer notes) lives in the shop profile below. */}
+          {activeTab === 'invoice' && <div id="invoice"><InvoiceSettings /></div>}
 
           {/* TAB 3: PROJECT TAGS */}
           {activeTab === 'tags' && (
@@ -1195,6 +996,8 @@ export default function Settings() {
                   </Link>
                 </div>
               ) : (
+                <>
+                <AiProfilesSettings />
                 <form onSubmit={handleSaveAiSettings} className="space-y-6">
                   {aiTestError && (
                     <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
@@ -1312,6 +1115,7 @@ export default function Settings() {
                     </div>
                   </div>
                 </form>
+                </>
               )}
             </div>
           )}
@@ -1698,6 +1502,20 @@ export default function Settings() {
                           </div>
 
                           <div>
+                            <div className="text-xs font-medium text-gray-300 mb-2">Invoices &amp; estimates on these jobs</div>
+                            <div className="flex flex-col gap-1.5 text-sm text-gray-200">
+                              <label className="flex items-center gap-2"><input type="radio" name="agent-invoices" checked={agentInvoices === 'none'} onChange={() => setAgentInvoices('none')} /> None (default)</label>
+                              <label className="flex items-center gap-2"><input type="radio" name="agent-invoices" checked={agentInvoices === 'read'} onChange={() => setAgentInvoices('read')} /> Read invoices and estimates</label>
+                              <label className={`flex items-center gap-2 ${agentAccess !== 'write' ? 'opacity-40' : ''}`}><input type="radio" name="agent-invoices" disabled={agentAccess !== 'write'} checked={agentInvoices === 'draft'} onChange={() => setAgentInvoices('draft')} /> Draft: create and edit estimates (never final invoices)</label>
+                              <label className={`flex items-center gap-2 ${agentAccess !== 'write' ? 'opacity-40' : ''}`}><input type="radio" name="agent-invoices" disabled={agentAccess !== 'write'} checked={agentInvoices === 'finalize'} onChange={() => setAgentInvoices('finalize')} /> Finalize: also confirm an estimate into a final invoice</label>
+                            </div>
+                            {agentInvoices !== 'none' && <p className="text-xs text-amber-400 mt-1">This lets the key read the prices, customer details and payments on the covered jobs{agentInvoices === 'finalize' ? ', and turn estimates into final invoices (it is recorded with this key, and you can reopen them). It can never send e-mail, record payments or delete' : ''}.</p>}
+                          </div>
+                          {agentAccess === 'write' && (
+                            <label className="flex items-start gap-2 text-sm text-gray-200"><input type="checkbox" className="mt-1" checked={agentResearch} onChange={e => setAgentResearch(e.target.checked)} /><span>Run AI research on jobs this key posts (uses the Research endpoint from Settings → AI; the endpoint is shared with the server for this key only).</span></label>
+                          )}
+
+                          <div>
                             <div className="text-xs font-medium text-gray-300 mb-2">Which jobs?</div>
                             <label className="flex items-center gap-2 text-sm text-gray-200 mb-2"><input type="radio" name="agent-scope" checked={!agentAllJobs} onChange={() => setAgentAllJobs(false)} /> Only the jobs I select (recommended)</label>
                             {!agentAllJobs && (
@@ -1744,7 +1562,7 @@ export default function Settings() {
                               <span>Generated on {new Date(key.created_at).toLocaleDateString()}</span>
                               {key.agent_access && (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                                  Agent access: {key.agent_access === 'write' ? 'read + write' : 'read only'} · {key.agent_all_jobs ? 'all jobs' : 'selected jobs'}
+                                  Agent access: {key.agent_access === 'write' ? 'read + write' : 'read only'} · {key.agent_all_jobs ? 'all jobs' : 'selected jobs'}{key.agent_invoices && key.agent_invoices !== 'none' ? ` · invoices: ${key.agent_invoices}` : ''}{key.agent_research ? ' · research' : ''}
                                 </span>
                               )}
                             </div>

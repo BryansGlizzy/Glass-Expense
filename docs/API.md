@@ -8,6 +8,7 @@
 2. [Endpoint index](#2-endpoint-index)
 3. [**Calendar API for integrations (API keys)**](#3-calendar-api-for-integrations-api-keys) ← build your own app against this
    - [3A. **Agent API for automations & AI agents (opt-in)**](#3a-agent-api-for-automations-and-ai-agents-opt-in-keys)
+   - [3B. **Variables: plug any website or app into GlassExpense**](#3b-variables-plug-any-website-or-app-into-glassexpense) ← start here for websites, forms and AI agents
 4. [Accounts & authentication (for custom clients)](#4-accounts--authentication)
 5. [Encryption reference](#5-encryption-reference)
 6. [Encrypted data API (`/api/v2`)](#6-encrypted-data-api-apiv2)
@@ -77,6 +78,10 @@ Auth legend: **public** · **session** (JWT) · **admin** (JWT of an admin) · *
 | `POST /api/settings/device-token` | session | Register a push token |
 | `POST /api/settings/ai/verify` | session | Test an AI provider key |
 | `POST /api/ocr`, `POST /api/taxes/w2/ocr` | session | Optional cloud OCR |
+| `POST /api/ai/complete`, `POST /api/ai/tasks`, `GET/DELETE /api/ai/tasks/:id`, `POST /api/ai/test` | session | AI relays: draft estimates, research, test connection (§7) |
+| `POST /api/invoices/send` | session | Internal invoice e-mailer (§7) |
+| `GET/POST /api/v2/invoices…`, `PUT/DELETE /api/v2/invoices/:id` | session | Encrypted invoices and estimates (§6.4a) |
+| `GET/POST /api/agent/v1/jobs/:id/invoices`, `PUT /api/agent/v1/invoices/:id`, `POST …/confirm` | **key** (agent, invoice permission) | Draft and confirm estimates (§3A.2) |
 | `GET /api/auth/google`, `GET /api/auth/google/callback` | session / public | Google OAuth |
 | `GET/PATCH /api/settings/google`, `DELETE …/disconnect` | session | Google Calendar settings |
 | `POST/DELETE /api/settings/google/delegation` | session | Opt in/out of background sync |
@@ -330,10 +335,10 @@ Send **only the part before the dot** in `x-api-key`, exactly like the calendar 
 
 | Method & path | Needs | Description |
 |---|---|---|
-| `GET /api/agent/v1/me` | any agent key | `{access, all_jobs, job_count, user}` |
+| `GET /api/agent/v1/me` | any agent key | `{access, all_jobs, job_count, user, invoices?}` (`invoices` appears when the key has an invoice permission) |
 | `GET /api/agent/v1/jobs?include_archived=true` | read | Jobs covered by the key, decrypted, with `total_income`, `total_expenses`, `net`, `entry_count` |
-| `GET /api/agent/v1/jobs/:id` | read | One job |
-| `POST /api/agent/v1/jobs` | write | Create a job. Body: `title` (required), `description`, `mode` (`expense`\|`budget`), `client_name`, `client_address`, `client_email`, `job_rate`, `invoice_notes`, `invoice_tag`, `start_date`, `end_date` (YYYY-MM-DD). Returns `201` with the job |
+| `GET /api/agent/v1/jobs/:id` | read | One job. Fields: `id, title, description, mode, client_name, client_address, client_email, client_phone, job_rate, invoice_notes, invoice_tag, invoice_number, intake, start_date, end_date, is_archived, role, owner, created_at, updated_at, total_income, total_expenses, net, entry_count`. `intake` is the parsed, normalized form of what a website sent (or `null`), including the `quote` |
+| `POST /api/agent/v1/jobs` | write | Create a job. Body: `title` (required), `description`, `mode` (`expense`\|`budget`), `client_name`, `client_address`, `client_email`, `job_rate`, `invoice_notes`, `invoice_tag`, `start_date`, `end_date` (YYYY-MM-DD), plus the **structured intake** below. Returns `201` with the job, or `200` + `duplicate: true` for a repeated `external_ref` |
 | `GET /api/agent/v1/jobs/:id/expenses?from=&to=&type=&limit=&offset=` | read | `{total, limit, offset, items:[{id, amount, description, entry_type, date, added_by, created_at, has_receipt}]}` (limit max 1000) |
 | `POST /api/agent/v1/jobs/:id/description` | write | Append text to a job's description. Body `{append: "…"}` (required, non-empty, max 100 000 characters in total). The text is added after the existing description, separated by a blank line; nothing already there is changed or removed. Only for jobs owned by the key's account. Retrying the same text is safe: if it is already present the response is `200` with `duplicate: true`. Returns the job (`201`, or `200` for a duplicate) |
 | `POST /api/agent/v1/jobs/:id/expenses` | write | Add one entry `{amount, description?, entry_type?: "expense"\|"income", date?, id?}` or `{items:[...]}` (max 100). `amount` must be positive; `date` defaults to today; `id` (UUID) makes retries idempotent (`200` + `duplicate: true`) |
@@ -346,13 +351,302 @@ curl -s -H "x-api-key: $KEY" -H 'Content-Type: application/json' \
   https://HOST/api/agent/v1/jobs/JOB_ID/expenses
 ```
 
+#### Structured intake (recommended for websites and forms)
+
+Instead of a free-text description, send structured fields (the complete variable reference, with examples per trade, is in [§3B](#3b-variables-plug-any-website-or-app-into-glassexpense)). GlassExpense validates and normalizes them (phone → E.164, e-mail lower-cased, names and street re-cased only when all upper/lower case, vehicle make canonicalized), stores them as the job's `intake`, **writes the description itself** in one uniform block, and uses the `quote` for the job's estimate. Text-only payloads keep working.
+
+```json
+POST /api/agent/v1/jobs
+{ "external_ref": "7d6c-uuid",                       // 1-100 chars [A-Za-z0-9._:-]; a repeat returns the existing job (200, duplicate:true)
+  "title": "Auto: 2012 Nissan Xterra - Pat Example", "mode": "budget", "start_date": "2026-11-12", "end_date": "2026-11-12",
+  "client_name": "Pat Example", "client_email": "pat@example.com", "client_phone": "5550100199", "client_address": "200 Sample St, Sampletown, ST 12345",
+  "vehicle": { "year": 2012, "make": "Nissan", "model": "Xterra", "engine": "4wd", "vin": "optional" },   // automotive shorthand
+  "fields": { "venue": "Hall A", "guests": 120 },     // ANY trade: values for the detail fields the owner defined (see below)
+  "services": ["Brakes & Rotors"],                    // up to 20 strings; "Other" becomes "Other Custom Work"
+  "parts_policy": "own-parts",                        // "own-parts" | "request-inspection" | "unknown"
+  "symptoms": "Grinding noise when braking",
+  "preferred": { "start": "2026-11-12", "end": "2026-11-12", "window": "Morning" },
+  "quote": { "hourly_rate": 55, "base_fee": 45, "variables": { "tax_rate": 0, "rush_fee": 20 } },   // numbers 0..1,000,000
+  "intake_text": "optional: a text description to parse instead" }
+```
+
+**Detail fields (any trade).** In *Settings → Invoices → Detail fields* the owner designs the information box on their estimates (a mechanic's vehicle, a plumber's job site, a photographer's venue…). Every field has a **variable name**; post a value under `fields.<name>` and the field fills itself in on the estimate (names are lower-case letters, digits and `_`, values text or numbers up to 200 characters, at most 30). The `vehicle` object above fills detail fields named `year`, `make`, `model`, `engine` and `vin`, so a mechanic's existing website keeps working unchanged. Values for names the owner has not defined are kept in the job's `intake.fields` and its description but not printed.
+
+**Fees.** The owner defines their own fees in *Settings → Invoices → Fees* (flat or a percentage of labor / subtotal, optionally capped or taxable). A fee can name a **website variable**: `base_fee` is `quote.base_fee`, anything else is looked up in `quote.variables` (for example a fee tied to `rush_fee`). When a job's quote carries that variable the fee takes that amount; otherwise the latest quote the app has seen, then the owner's own amount.
+
+`quote.hourly_rate` becomes the job's `job_rate` (unless you send `job_rate`). The owner's app adopts the quote for the Estimate it drafts (the website is the source of truth for rates) and marks it "from website". `quote.variables` may carry extra named numbers (for example `tax_rate`); they are preserved and a posted `tax_rate` is adopted like any other rate. Free text sent as `description` alongside structured fields is kept under a `Notes:` heading. Warnings found while normalizing (for example `address_incomplete`, `phone_missing`, `service_unscoped`, `customer_parts`) are listed in `intake.warnings`.
+
+If this key was enabled for **AI research**, the server then researches the job in the background and appends a `### 🤖 AI Research (model)` section to its description (see §3A.5). Jobs created in the GlassExpense app, imported, or created by other keys are never researched automatically.
+
+#### Invoices and estimates (the key's *Invoices* permission)
+
+A key has an invoice permission: `none` (default) < `read` < `draft` < `finalize`; `draft` and `finalize` need read + write access. It applies only to jobs the key covers **and that the key's account owns**. Choosing it widens what the key can read by exactly the invoice contents (prices, customer details, payments) of those jobs, and the key-creation dialog says so.
+
+| Method & path | Needs | Description |
+|---|---|---|
+| `GET /api/agent/v1/jobs/:id/invoices` | `read` | The job's documents, decrypted: `[{id, job_id, rev, created_at, updated_at, invoice}]`. `invoice` is the standard invoice JSON (`meta`, `shop`, `customer`, `vehicle`, `laborItems`, `partItems`, `settings`, `notes`, `ge`) |
+| `POST /api/agent/v1/jobs/:id/invoices` | `draft` | Create an **Estimate**. Body `{ invoice?, external_ref? }`. The server forces `docType: "estimate"` and status `Draft` or `Estimate`, and ignores any `ge` you send. Idempotent: one estimate per job (or per `external_ref`); a repeat returns `200` + `duplicate: true`. The id is derived from the job, the same one the app uses for its own auto-draft, so they never collide. The document is *sparse*: your settings are not visible to the server, so the owner's app fills blank shop/terms fields the next time it opens |
+| `PUT /api/agent/v1/invoices/:id` | `draft` | Edit an unconfirmed estimate. Body `{ invoice, expected_rev? }`; `409` if `expected_rev` is stale. `ge` is never agent-editable. A final invoice returns `409` |
+| `POST /api/agent/v1/invoices/:id/confirm` | `finalize` | Turn the estimate into a **Final Invoice** (`docType: "invoice"`, status stored as `Draft` and displayed as **Final**, issue date today, same number). Body `{ note? }`. Recorded as `ge.review = {by: "agent", keyId, at, note}` and in `ge.events`; the owner sees a "Finalized by an agent" notice and can reopen it. `409` if already final |
+
+Every invoice an agent writes passes through the same normalizer as imported files: numbers are clamped, enums allow-listed, text capped, unknown keys dropped. Agents can never edit a final invoice, send e-mail, record payments or delete.
+
 ### 3A.3 Behaviour notes
 
 - **Selected-jobs keys** only ever see the jobs chosen at creation, plus jobs *that key itself* creates. **All-jobs keys** are topped up with jobs you create or join later, whenever you next open the app (so a job created in the browser may not be visible to the agent until then).
 - **Jobs created by an agent** appear in your account normally. The first time you open the app it takes ownership of the job key (re-seals it under your master key), so it keeps working even if the API key is deleted.
 - **Invoice numbers:** all-jobs keys allocate the next number (prefix inferred from your existing untagged jobs, or `INV`). Selected-jobs keys cannot see every job, so they leave it empty; it is assigned the first time you edit the job in the app.
 - Entries written by an agent carry no tags or receipt; add them in the app.
+- **Keys and the browser:** the app's own edit of a job preserves `client_phone` and `intake`; the first time the app opens after an agent created a job it also assigns a missing invoice number and drafts an Estimate (if *Draft an estimate automatically* is on).
 - Errors are always `{ "error": "message" }`: `400` validation, `401` bad key, `403` no agent access / read-only, `404` job not covered, `429` rate limit, `503` server not configured (`SERVER_WRAP_KEY`) or the key's bundle can't be opened.
+
+### 3A.5 AI research for posted jobs (opt-in per key)
+
+When a key is created with **Run AI research on jobs this key posts**, the endpoint from *Settings → AI → Research* (URL, model, optional key, timeout, prompt, heading and an optional notes sink) is sealed into that key's bundle, exactly like job keys, and deleted with the key. After such a key creates a job, a worker **inside the server** (no HTTP call to itself) sends the research prompt to that endpoint and appends the answer through the same permission-checked, append-only code as `POST …/description`. It skips jobs that already contain a `### 🤖 AI` section (also re-checked at write time, so it cannot double-post if another producer finishes first), runs at most two at once per user, and never applies the output to rates, fees or invoices. Only the vehicle, services and symptoms are sent: no customer name, phone, e-mail or street address.
+
+---
+
+## 3B. Variables: plug any website or app into GlassExpense
+
+This section is the contract between **your site or app** (the *sender*) and **a GlassExpense owner's invoicing setup** (the *receiver*). It is written for people and for AI agents building an integration. Everything here is what the server and the owner's app really do today.
+
+### 3B.1 The idea in one minute
+
+```
+ YOUR SITE / APP                       GLASSEXPENSE                              THE OWNER'S ESTIMATE
+ ───────────────                       ────────────                              ────────────────────
+ POST /api/agent/v1/jobs   ───────►    validates + normalizes   ───────►   customer box      ← client_*
+   client_*  (who)                     stores it as the job's `intake`      detail box         ← fields.<name>  (+ vehicle.*)
+   fields.<name>  (what)               writes the job description           fees               ← quote.<name>   (+ quote.base_fee)
+   quote.<name>   (how much)                                                labor rate / tax   ← quote.hourly_rate / quote.variables.tax_rate
+   services / symptoms (the work)                                           notes              ← symptoms
+```
+
+- **You send plain named values.** You never send layout, prices for lines, or invoice JSON.
+- **The owner decides which names are "plugged in"** by designing their own *Detail fields* and *Fees* in **Settings → Invoices**. Each field and each variable-linked fee shows its **variable name**; that name is the plug.
+- **A name that matches fills itself in; a name that doesn't is never lost or rejected.** It is kept in the job's `intake` and printed in the job description, just not on the invoice.
+- **The server cannot see the owner's settings** (they are end-to-end encrypted). So there is no "list the accepted variables" endpoint; the *owner's app* does the matching when it opens the job and drafts the estimate. Agree the names with the owner (§3B.7 has a one-page contract you can hand them), or read what the owner defined from the Settings screens.
+
+### 3B.2 Quick start
+
+Minimum: a title. Typical: who, what, how much.
+
+```bash
+curl -s -H "x-api-key: $KEY" -H 'Content-Type: application/json' https://HOST/api/agent/v1/jobs -d '{
+  "external_ref": "order-10492",
+  "title": "Wedding photography - Pat Example",
+  "client_name": "Pat Example", "client_email": "pat@example.com", "client_phone": "5550100199",
+  "client_address": "200 Sample St, Sampletown, ST 12345",
+  "fields": { "venue": "Hall A", "guests": 120, "event_date": "2026-06-20" },
+  "services": ["Full-day coverage"],
+  "symptoms": "Ceremony at 2 pm, reception at 5 pm.",
+  "quote": { "hourly_rate": 150, "base_fee": 75, "variables": { "travel_fee": 40, "rush_fee": 0 } }
+}'
+```
+
+Response `201` (job) or `200` with `duplicate: true` when the same `external_ref` was sent before. Sending the same order twice is always safe.
+
+### 3B.3 Every variable you can send
+
+**Naming rules (the only rules that matter):**
+
+| Where | Name pattern | Notes |
+|---|---|---|
+| `fields.<name>` | `^[a-z][a-z0-9_]{0,30}$` | lower-case letters, digits, `_`. At most **30** fields per request. A bad name is a `400` naming the field |
+| `quote.variables.<name>` | `^[a-z][a-z0-9_]{0,40}$` (case-insensitive) | at most **30**. Values are numbers `0 … 1,000,000`, rounded to cents |
+| `external_ref` | `^[\w.:-]{1,100}$` | idempotency key |
+
+**Top-level variables** (all optional except `title`):
+
+| Variable | Type / limits | Lands in | Notes |
+|---|---|---|---|
+| `title` | text, required | job title | |
+| `external_ref` | text (pattern above) | `intake.externalRef` | a repeat returns the existing job, `duplicate: true` |
+| `client_name` | text ≤ 200 | **customer name** | re-cased only if ALL upper or ALL lower case |
+| `client_email` | text ≤ 254 | **customer e-mail** | lower-cased; invalid → warning `email_invalid` |
+| `client_phone` | text ≤ 40 | **customer phone** | normalized to E.164 and shown as `(555) 010-0199`; unusable → warning `phone_missing` |
+| `client_address` | text ≤ 500 | **customer address** | parsed into street/city/state/ZIP; incomplete → warning `address_incomplete` |
+| `fields.<name>` | text or number, ≤ 200 chars each | the owner's **detail field** with that variable name | see §3B.4 |
+| `vehicle` | object `{year, make, model, engine, vin}` or one text line | detail fields named `year`, `make`, `model`, `engine`, `vin` | automotive shorthand; `make` is canonicalized (`chevy` → `Chevrolet`), `year` must be 1900…next year, `vin` upper-cased |
+| `services` | up to 20 strings | suggests the owner's matching **service packages**; listed in the description | `"Other"` becomes `Other Custom Work` |
+| `parts_policy` | `own-parts` \| `request-inspection` \| `unknown` | adds the owner's "customer supplies parts" clause to the terms when `own-parts` | |
+| `symptoms` | text ≤ 5000 | **customer notes** on the estimate (the work description) | |
+| `preferred` | `{start, end, window}`; dates `YYYY-MM-DD`, window ≤ 100 chars | description + intake | shown to the owner as preferred schedule |
+| `start_date`, `end_date` | `YYYY-MM-DD` | the job's dates | |
+| `quote.hourly_rate` | number | **labor rate** (also the job's `job_rate`) | |
+| `quote.base_fee` | number | the owner's fee linked to `base_fee` | the one *named* quote value |
+| `quote.variables.<name>` | number | the owner's **fee linked to that name**; `tax_rate` sets the **sales-tax %** | see §3B.5 |
+| `mode`, `job_rate`, `invoice_notes`, `invoice_tag`, `description` | as in §3A.2 | the job itself | `description` is kept under a `Notes:` heading |
+| `intake_text` | text | parsed for `Label: value` lines (name, phone, e-mail, address, vehicle, services…) | only for senders that cannot send structure; structured values win |
+
+Unknown top-level keys are ignored. Types are checked: a wrong type is a `400` with a message such as `fields.guests must be text or a number`.
+
+### 3B.4 Detail fields (any trade): `fields.<name>`
+
+The owner builds the information box printed on their estimate in **Settings → Invoices → Detail fields**: a title (for example *Event details*, *Job site*, *Vehicle Information*) and any number of fields. Each field has:
+
+| Property | Meaning |
+|---|---|
+| **Label** | what is printed, for example `Venue` |
+| **Variable name** | what you send, for example `venue`. Generated from the label; the owner may rename it |
+| **Type** | `text`, `number`, `date`, `vin` (a `vin` field is shown in a monospaced font with a live VIN check in the editor; the value is printed as sent) |
+| **Default** | printed when nothing is sent (a field with no value and no default is not printed) |
+
+**How one field gets its value (first match wins):**
+
+1. `fields.<variable name>` in the request.
+2. `vehicle.<variable name>`, if the name is `year`, `make`, `model`, `engine` or `vin`.
+3. A `Label: value` line in the job's text whose label equals the field's label or variable name (case-insensitive).
+4. The field's default (otherwise blank).
+
+Values the owner **edited by hand** in the estimate are never overwritten when they press *Refresh from job*. **Empty fields are not printed**, and if no field has a value the whole box is left off (the customer box then takes the full width). The owner can leave the field list empty for a plain job, or load the one-click *automotive set* (title *Vehicle Details*; `year, make, model, vin, license_plate, mileage, engine, service_advisor`).
+
+### 3B.5 Money variables: `quote.*`
+
+| You send | Effect |
+|---|---|
+| `quote.hourly_rate` | The labor rate used on the estimate and as the job's rate. Precedence: this request → the job's own `job_rate` → the owner's latest website rate (if *follow website* is on) → the owner's own rate |
+| `quote.variables.tax_rate` | Sales-tax percentage for the estimate (`8.25` means 8.25 %). Otherwise the owner's own tax rate |
+| `quote.base_fee` | The amount of the owner's fee that is **linked to `base_fee`** |
+| `quote.variables.<name>` | The amount of the owner's fee that is **linked to `<name>`** |
+
+**A fee is plugged in when the owner links it** (Settings → Invoices → Fees → *Website variable*). The owner defines the fee's label, kind and everything else; you supply only the number:
+
+| Fee kind (owner's choice) | The number you send means |
+|---|---|
+| flat | dollars |
+| percent of labor / percent of subtotal | percent (`10` = 10 %) |
+
+Precedence for a linked fee: this request's value → the latest value any request carried (if *follow website* is on) → the owner's own amount. Send `0` to make this fee $0.00 for this job. Fees that are not linked are never changed by you, and a fee's cap and taxable flag always belong to the owner. The prices of individual labor and part lines are never accepted from outside; they come from the owner's service packages or are typed in by the owner.
+
+### 3B.6 Worked examples (same API, three trades)
+
+**A. Mechanic (the original website payload; unchanged).**
+
+| Owner's setup | |
+|---|---|
+| Detail fields | `year`, `make`, `model`, `vin`, `engine`, `license_plate`, `mileage` |
+| Fees | Travel Fee, flat, linked to `base_fee` · Shop Supplies, 5 % of labor, cap 35 |
+
+```json
+{ "title": "Auto: 2021 Honda Accord - Jordan Taylor", "client_name": "Jordan Taylor", "client_phone": "5550142782",
+  "vehicle": { "year": 2021, "make": "honda", "model": "Accord", "engine": "1.5L Turbo I4" },
+  "fields": { "mileage": 48250, "license_plate": "8VIN123" },
+  "services": ["Oil change"], "symptoms": "Due for service",
+  "quote": { "hourly_rate": 95, "base_fee": 45 } }
+```
+Result: box shows `2021 Honda Accord`, engine, mileage 48,250, plate; labor rate $95; Travel Fee $45; Shop Supplies stays the owner's 5 %.
+
+**B. Photographer (no vehicle at all).**
+
+| Owner's setup | |
+|---|---|
+| Detail fields | `venue` (text), `guests` (number), `event_date` (date) · box title *Event details* |
+| Fees | Travel Fee, flat, linked to `travel_fee` · Rush Fee, flat, linked to `rush_fee` · Processing, 3 % of subtotal (not linked) |
+
+```json
+{ "title": "Wedding - Pat Example", "client_name": "Pat Example",
+  "fields": { "venue": "Hall A", "guests": 120, "event_date": "2026-06-20", "dj": "Not needed" },
+  "quote": { "hourly_rate": 150, "variables": { "travel_fee": 40, "rush_fee": 0, "tax_rate": 6 } } }
+```
+Result: *Event details* shows Venue, Guests, Event date; Travel Fee $40; Rush Fee $0.00; tax 6 %; `dj` is kept in the job description only because no field has that name.
+
+**C. Plumber (job site, no rates from the website).**
+
+| Owner's setup | |
+|---|---|
+| Detail fields | `site_address`, `access_notes`, `urgency` · box title *Job site* |
+| Fees | Call-out, flat $90, not linked |
+
+```json
+{ "title": "Leak under sink - Sam Rivera", "client_name": "Sam Rivera", "client_phone": "5550101234",
+  "fields": { "site_address": "12 Pine Rd", "urgency": "Today" }, "symptoms": "Water under the kitchen sink" }
+```
+Result: the job-site box is filled from `site_address` and `urgency`; rates and fees stay the owner's.
+
+### 3B.7 One-page contract to agree with the owner
+
+Copy this, fill it in with the owner, and build to it. Both sides then know exactly which names are plugged in.
+
+```
+Integration contract: <your site> → <owner's business>
+
+Customer           client_name, client_email, client_phone, client_address
+Detail box title   "<e.g. Event details>"
+Detail fields      <variable name> | <label> | <text/number/date/vin>      (owner creates these in Settings → Invoices)
+Rate               quote.hourly_rate
+Tax                quote.variables.tax_rate        (percent)
+Fees (linked)      <variable name> | <fee label> | <flat/percent>          (owner links each in Settings → Invoices → Fees)
+Services           services[]  must match the owner's package keywords:   <list>
+Notes              symptoms
+Idempotency        external_ref = <your order id>
+```
+
+### 3B.8 What you get back, and how to check your work
+
+- `POST /jobs` returns the job including `intake` (the normalized values), `intake.warnings` (a list of `{code, message}` such as `phone_missing`, `address_incomplete`, `service_unscoped`) and `intake.fields` / `intake.quote` exactly as stored. `GET /jobs/:id` returns the same later.
+- Values that were sent but not recognized are **not errors**: check `intake.fields` to see what was stored.
+- To see how it landed on the estimate, a key with the *Invoices* permission can `GET /jobs/:id/invoices` (§3A.2). The estimate appears there after the owner's app has opened the job (it drafts it on first open when *Draft an estimate automatically* is on), unless you create the estimate yourself with `POST /jobs/:id/invoices` (below).
+
+### 3B.9 Advanced: writing the estimate yourself (`Invoices: draft`)
+
+If the key has the *draft* permission you may send the estimate document instead of letting the owner's app prefill it. The variables appear in the invoice JSON as two arrays:
+
+```json
+{ "fees":    [ { "id": "fee_travel", "label": "Travel Fee", "kind": "flat", "value": 40, "cap": 0, "taxable": false } ],
+  "details": { "title": "Event details",
+               "fields": [ { "key": "venue", "label": "Venue", "type": "text", "value": "Hall A" },
+                           { "key": "guests", "label": "Guests", "type": "number", "value": "120" } ] } }
+```
+
+Limits: 20 fees (`kind`: `flat` | `percentOfLabor` | `percentOfSubtotal`; percent values are 0-100), 30 detail fields (`type`: `text` | `number` | `date` | `vin`; values ≤ 200 characters). Everything is normalized like an imported file (numbers clamped, unknown keys dropped), the server forces `docType: "estimate"`, and the owner's app fills any shop or terms field you left blank. Documents **without** `fees` / `details` are original-format invoices (fixed fee fields and a vehicle box); they keep working.
+
+**Status names.** The stored status value is `Draft`, `Estimate`, `Sent`, `Approved`, `Paid` or `Overdue`. A *final invoice* whose status is `Draft` is **displayed as "Final"** everywhere in the app, preview, PDF and dashboard; the API value stays `Draft` so older files and integrations keep working. An estimate that is still a draft stays "Draft".
+
+### 3B.10 Checklist for integrators and AI agents
+
+1. Pick your `external_ref` (your order id) and always send it.
+2. Send who (`client_*`), what (`fields.*`, `services`, `symptoms`), how much (`quote.*`). Send only values you actually know; blanks are fine.
+3. Use lower-case snake_case names that match the owner's variable names (§3B.7). If unsure, send them anyway: nothing is lost.
+4. Send numbers as numbers (`guests: 120`, `base_fee: 45`), dates as `YYYY-MM-DD`.
+5. Never send prices for individual labor or part lines, fee caps or taxable flags; those are the owner's.
+6. Read `intake.warnings` in the response and fix what you can on your side.
+7. Retry safely: the same `external_ref` returns the original job (`200`, `duplicate: true`).
+8. Respect `429` (120 requests/minute per key) and use only the part of the key before the dot in `x-api-key`.
+
+### 3B.11 Machine-readable schema (`POST /api/agent/v1/jobs`)
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "required": ["title"],
+  "properties": {
+    "title": { "type": "string" },
+    "external_ref": { "type": "string", "pattern": "^[\\w.:-]{1,100}$" },
+    "client_name": { "type": "string", "maxLength": 200 },
+    "client_email": { "type": "string", "maxLength": 254 },
+    "client_phone": { "type": "string", "maxLength": 40 },
+    "client_address": { "type": "string", "maxLength": 500 },
+    "fields": { "type": "object", "maxProperties": 30, "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,30}$" },
+                "additionalProperties": { "type": ["string", "number"] } },
+    "vehicle": { "oneOf": [ { "type": "string" },
+      { "type": "object", "properties": { "year": { "type": "integer", "minimum": 1900 }, "make": { "type": "string" }, "model": { "type": "string" },
+                                          "engine": { "type": "string" }, "vin": { "type": "string", "maxLength": 17 } } } ] },
+    "services": { "type": "array", "maxItems": 20, "items": { "type": "string" } },
+    "parts_policy": { "enum": ["own-parts", "request-inspection", "unknown"] },
+    "symptoms": { "type": "string", "maxLength": 5000 },
+    "preferred": { "type": "object", "properties": { "start": { "type": "string", "format": "date" }, "end": { "type": "string", "format": "date" }, "window": { "type": "string", "maxLength": 100 } } },
+    "quote": { "type": "object", "properties": {
+        "hourly_rate": { "type": "number", "minimum": 0, "maximum": 1000000 },
+        "base_fee": { "type": "number", "minimum": 0, "maximum": 1000000 },
+        "variables": { "type": "object", "maxProperties": 30, "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_]{0,40}$" },
+                       "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1000000 } } } },
+    "mode": { "enum": ["expense", "budget"] }, "job_rate": { "type": "number" }, "invoice_notes": { "type": "string" }, "invoice_tag": { "type": "string" },
+    "start_date": { "type": "string", "format": "date" }, "end_date": { "type": "string", "format": "date" },
+    "description": { "type": "string" }, "intake_text": { "type": "string" }
+  }
+}
+```
 
 ---
 
@@ -508,9 +802,22 @@ Access control: you must be the job's **owner** or an **active member**. Anyone 
 
 > **Recurring entries are created by the client.** The server cannot read a subscription, so the app generates due expenses when it opens (ids are derived from subscription + date, so two devices never duplicate). The server only sends content-free reminder e-mails/pushes ("a subscription is due in 2 days") based on `next_generation_date` and the reminder flags.
 
+### 6.4a Invoices (`/api/v2/invoices`)
+One small encrypted record per invoice/estimate, sealed under the **job key** (AAD `invoice|<jobId>|<id>`, plaintext `{ v: 1, invoice }`); PDFs and HTML are never stored. Active job members can read; only the job owner can write, enforced here.
+
+| Route | Notes |
+|---|---|
+| `GET /api/v2/invoices` | Every invoice the caller can read: `[{ id, job_id, user_id, enc, rev, created_at, updated_at }]` |
+| `GET /api/v2/jobs/:jobId/invoices` | One job's invoices (members and owner; others `404`) |
+| `POST /api/v2/jobs/:jobId/invoices` | **Owner only** (`403` for members). `{ id (UUID), enc }`, `enc` ≤ 100 KB. A repeat of the same `id` by the owner returns `200` with `duplicate: true` (so two devices creating the same deterministic estimate collapse into one) |
+| `PUT /api/v2/invoices/:id` | **Owner only**. `{ enc, expected_rev? }`; atomic compare-and-swap, `409` with `current` on a stale revision |
+| `DELETE /api/v2/invoices/:id` | **Owner only** |
+
+Non-members get `404` everywhere. API keys get `403`. Deleting a job or a user deletes its invoices explicitly. Real-time: `invoice_updated`, `invoice_deleted` (ciphertext rows).
+
 ### 6.5 Personal encrypted blobs
 `GET /api/v2/blobs` → `[ { name, enc, version, updated_at } ]`
-`PUT /api/v2/blobs/:name` — `{ enc, expected_version? }` → `{ name, version }`; `409` with the current `version` on conflict. Allowed names: `tags, tax_settings, tax_mappings, w2_forms, invoice_template, ai_settings, preferences`. Max ≈ 900 KB.
+`PUT /api/v2/blobs/:name` — `{ enc, expected_version? }` → `{ name, version }`; `409` with the current `version` on conflict. Allowed names: `tags, tax_settings, tax_mappings, w2_forms, invoice_template, invoice_packages, ai_settings, preferences`. Invoicing settings (`invoicing`) live inside `invoice_template`; Service Packages in `invoice_packages`; AI endpoint profiles and the research prompt inside `ai_settings`. Max ≈ 900 KB.
 
 ### 6.6 Calendar → see §3. Delegation for background sync → §7.
 
@@ -589,9 +896,13 @@ Things to know:
 ### Device token
 `POST /api/settings/device-token` → `{ token }`.
 
+### Invoice e-mail
+`POST /api/invoices/send` (session only; opt-in in Settings → Invoices → E-mail): `{ to, cc?, bcc?, subject, text, pay_links?: [{label,url}], pdf_base64, filename, shop_name?, reply_to? }` → `{ success, recipients }`. The PDF is produced by the browser and passes through the server **in memory** to be attached; it is not stored and the content is never logged. Limits: at most 3 recipients in total, no line breaks in headers, the attachment must start with `%PDF-` and be ≤ 3 MB, `pay_links` must be `https` on `paypal.me`, `venmo.com` or `cash.app` (no credentials or ports), the HTML body is built from the escaped plain text, and each user may send `INVOICE_EMAIL_DAILY_LIMIT` (default 30) per day. Without SMTP the route answers `503` with `code: "smtp_not_configured"` (the app then offers a prefilled `mailto:`). Agents cannot send.
+
 ### AI / OCR
 - The AI provider key is stored **encrypted in your vault** (`ai_settings` blob), not on the server.
 - `POST /api/settings/ai/verify` → `{ ai_api_key, ai_base_url }` tests the provider; nothing is stored.
+- **Text relays** (session only; the browser sends the endpoint settings from its vault with each request, the server stores nothing): `POST /api/ai/complete` `{profile:{base_url,model,api_key?,timeout_s?}, messages, json?}` → `{content}`; `POST /api/ai/tasks` (same body) → `202 {id}`, then `GET /api/ai/tasks/:id` → `{status:"pending"|"done"|"error", content?, error?}` and `DELETE /api/ai/tasks/:id` to cancel (results live in memory for 30 minutes, are readable only by the user who started them, at most 2 run at once); `POST /api/ai/test` `{profile}` → `{ok, models}`. Calls use a shared client that never follows redirects, bounds the response size and does not return provider error bodies. **Local endpoints:** set `AI_ALLOWED_HOSTS` (for example `192.168.1.50:8000`) so only those hosts may use plain `http` and private addresses; `ALLOW_PRIVATE_AI_URLS=true` still opens all private addresses and should stay off on an internet-facing server.
 - `POST /api/ocr` (`multipart`: `receipt`, `ai_api_key`, `ai_base_url`, `ai_model`) and `POST /api/taxes/w2/ocr` (`w2`, …) forward the image to your provider and return the parsed fields. The key is used for that request only. The provider URL must be `https` and publicly routable (SSRF-protected) unless the operator sets `ALLOW_PRIVATE_AI_URLS=true`. Upstream error bodies are not returned.
 
 ---

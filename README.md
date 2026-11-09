@@ -1,6 +1,6 @@
 # GlassExpense
 
-Offline-first PWA and Android app for contractors and small businesses: job-based expense tracking, receipt capture with OCR, invoices, and an IRS-oriented tax center.
+Offline-first PWA and Android app for contractors and small businesses: job-based expense tracking, receipt capture with OCR, invoices and estimates (native editor, PDF, e-mail, payment links), and an IRS-oriented tax center.
 
 **End-to-end encrypted.** Jobs, expenses, notes, tax data and receipts are encrypted in your browser before they reach the server, with keys derived from your password and a 12-word recovery phrase. Neither the operator nor a database leak can read them; only you and people you invite can. Your password never leaves your device. See [how it works and its limits](docs/DOCUMENTATION.md#5-end-to-end-encryption-e2ee--security-flow).
 
@@ -8,7 +8,7 @@ Offline-first PWA and Android app for contractors and small businesses: job-base
 | :--- | :--- |
 | Frontend | React 19, Vite, Tailwind v4, Capacitor (Android), Workbox PWA |
 | Backend | Express, Socket.IO, SQLite (`better-sqlite3`) |
-| Docs | [Architecture](docs/DOCUMENTATION.md) · [API & calendar integration](docs/API.md) · [Tax engine](docs/TAX_SYSTEM.md) · [Security review](docs/SECURITY_AUDIT.md) · [Pre-production checklist](docs/TODO.md) |
+| Docs | [Architecture](docs/DOCUMENTATION.md) · [API & calendar integration](docs/API.md) · [Tax engine](docs/TAX_SYSTEM.md) · [Invoicing 2.0 plan](docs/INVOICING_PLAN.md) · [Security review](docs/SECURITY_AUDIT.md) · [Pre-production checklist](docs/TODO.md) |
 
 ## Quick start
 
@@ -92,6 +92,10 @@ All settings are documented in [`.env.example`](.env.example) and [docs/DOCUMENT
 - Back up `data/` (database **and** uploads) together. Never serve it directly; the app does not.
 - After changing the CSP-relevant assets, roll out with `CSP_MODE=report-only` first.
 - Upgrading from the old flat layout: see "Upgrading an existing deployment" in [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md).
+
+## Invoices, estimates and your website
+
+The **Invoices** tab builds estimates and invoices from a job: customer, vehicle, number and the website's rates arrive pre-filled, you add labor and parts (or one-click **Service Packages**), review, and confirm the estimate into a final invoice. Send it by e-mail with PayPal / Venmo / Cash App / Zelle options, or print / download the PDF. Everything is encrypted in your browser; e-mail and AI are opt-in features that you switch on in Settings. A website can post jobs with structured fields, its rates and an `external_ref` through the agent API ([API.md §3A](docs/API.md#3a-agent-api-for-automations-and-ai-agents-opt-in-keys)); with research enabled on that key, GlassExpense researches the job itself. Local AI models need their address in `AI_ALLOWED_HOSTS`.
 
 ## For integrations
 

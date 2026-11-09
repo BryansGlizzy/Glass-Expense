@@ -181,3 +181,38 @@ export const sendReportEmail = async (toEmail: string, username: string, r: Buil
     `),
   }, 'report');
 };
+
+// ── Invoice e-mail (docs/INVOICING_PLAN.md §5.12) ───────────────────────────────────────────────────────────────
+export interface InvoiceEmail {
+  shopName: string; replyTo?: string; to: string[]; cc: string[]; bcc: string[]; subject: string; text: string; html: string;
+  pdf: Buffer; filename: string;
+}
+export type InvoiceEmailResult = { ok: true; captured?: boolean } | { ok: false; code: 'smtp_not_configured' | 'send_failed' };
+
+/** Sends the client-generated PDF as an attachment. Unlike `deliver`, the caller learns whether it worked. Content is never logged. */
+export async function sendInvoiceEmail(m: InvoiceEmail): Promise<InvoiceEmailResult> {
+  if (!transporter) {
+    // Test/dev aid, like `deliver`: capture the message and the exact attachment bytes on disk.
+    if (process.env.EMAIL_CAPTURE_DIR) {
+      const dir = process.env.EMAIL_CAPTURE_DIR; fs.mkdirSync(dir, { recursive: true });
+      const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      fs.writeFileSync(path.join(dir, `${stamp}-invoice.html`), `<!-- to: ${m.to.join(',')} | cc: ${m.cc.join(',')} | bcc: ${m.bcc.join(',')} | reply-to: ${m.replyTo ?? ''} | from-name: ${m.shopName} | subject: ${m.subject} | attachment: ${m.filename} -->\n${m.html}\n<!-- text -->\n${m.text}`);
+      fs.writeFileSync(path.join(dir, `${stamp}-${m.filename}`), m.pdf);
+      return { ok: true, captured: true };
+    }
+    return { ok: false, code: 'smtp_not_configured' };
+  }
+  try {
+    await transporter.sendMail({
+      from: FROM(m.shopName), to: m.to, cc: m.cc.length ? m.cc : undefined, bcc: m.bcc.length ? m.bcc : undefined, replyTo: m.replyTo,
+      subject: m.subject, text: m.text, html: m.html, attachments: [{ filename: m.filename, content: m.pdf, contentType: 'application/pdf' }],
+    });
+    return { ok: true };
+  } catch { return { ok: false, code: 'send_failed' }; }
+}
+
+export const renderInvoiceEmailHtml = (text: string, links: Array<{ label: string; url: string }>): string => {
+  const body = esc(text).replace(/\r?\n/g, '<br/>');
+  const buttons = links.map(l => `<a href="${esc(l.url)}" style="display:inline-block;margin:4px 6px 4px 0;padding:10px 18px;background:#1f5bd9;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Pay with ${esc(l.label)}</a>`).join('');
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#111827"><div>${body}</div>${buttons ? `<p style="margin-top:16px">${buttons}</p>` : ''}</div>`;
+};

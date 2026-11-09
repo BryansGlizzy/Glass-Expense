@@ -69,7 +69,9 @@ glassexpense/
 │   ├── middleware.ts                 # Sessions, API-key scoping, access guards, rate limits, uploads
 │   ├── helpers.ts · server-crypto.ts # User payload/validators · opt-in calendar-key wrapping (SERVER_WRAP_KEY)
 │   ├── db.ts                         # Schema + idempotent migrations (incl. E2EE columns/tables)
-│   ├── routes/                       # auth · admin · settings · data (/api/v2) · legacy (migration) · ocr
+│   ├── routes/                       # auth · admin · settings · data (/api/v2) · agent · ai · invoices-mail · legacy (migration) · ocr
+│   ├── agent-core.ts · research.ts   # Agent permission model shared by the routes and the in-process research worker · AI research for posted jobs
+│   ├── ai-client.ts                  # One SSRF-guarded OpenAI-compatible client (long timeouts, no redirects)
 │   ├── sweeps.ts · push.ts           # Activity digests, content-free reminders · Firebase push
 │   ├── email.ts · google-calendar.ts # Escaped templates · calendar sync (opt-in delegation)
 │   └── saas/index.ts                 # SaaS tier enforcement and limits
@@ -86,7 +88,6 @@ glassexpense/
 │   ├── components/                   # Reusable UI component modules
 │   │   ├── BudgetTrendChart.tsx      # Recharts visual area chart with dynamic profit/loss gradient
 │   │   ├── CalendarView.tsx          # Multi-view interactive project calendar (Month, Week, Day)
-│   │   ├── InvoiceGenerator.tsx      # High-DPI PDF invoice generator with client billing templates
 │   │   ├── Layout.tsx                # Application shell with responsive sidebar, navigation, mobile drawer
 │   │   ├── MarkdownRenderer.tsx      # Custom Markdown parser with sanitized tables and code blocks
 │   │   ├── OTAUpdateManager.tsx      # Native mobile Over-The-Air release checker & download modal
@@ -102,6 +103,7 @@ glassexpense/
 │   │   ├── Dashboard.tsx             # Project dashboard: job cards, calendar toggle, key migration
 │   │   ├── ForgotPassword.tsx        # Password reset initiation view
 │   │   ├── Home.tsx                  # High-converting landing page showcasing glassmorphic UI
+│   │   ├── Invoices.tsx              # Invoices & estimates workspace (/invoices)
 │   │   ├── Job.tsx                   # Core project workspace: expense ledger, receipt capture, wishlists
 │   │   ├── Legal.tsx                 # Terms of Service & Privacy Policy
 │   │   ├── Login.tsx                 # User authentication & PBKDF2 Master Key unwrapping
@@ -111,6 +113,8 @@ glassexpense/
 │   │   ├── Settings.tsx              # Tabbed settings: Profile, Invoices, Tags, AI, Reports, Google
 │   │   └── TaxCenter.tsx             # Tax Hub: Overview, Schedule C, Sole Prop forms, W-2, 1040-ES, CPA export
 │   │
+│   ├── invoice/                      # Invoicing 2.0 core (pure TS, tested): model, totals, PDF writer, sheet view-model, settings, packages, intake, prefill, review, payments, tax split, AI draft
+│   ├── components/invoice/           # Invoice workspace (editor, sheet, modals, history) · components/settings/ InvoiceSettings, AiProfilesSettings
 │   └── utils/                        # Frontend algorithmic & utility libraries
 │       ├── crypto.ts                 # Web Crypto API: BIP-39, PBKDF2, AES-GCM-256 key wrapping & file crypto
 │       ├── invoice.ts                # Rolling 6-character sequential invoice numbering algorithms
@@ -390,6 +394,8 @@ The server stores **ciphertext envelopes** (`enc`) beside the minimum plaintext 
 | `job_invites` | Single-use, expiring invite tokens (only the SHA-256 is stored) |
 | `api_keys.wrapped_calendar_key`, `last_used_at` | Calendar key wrapped by the key's private half |
 | `license_keys.status` | `unused → active \| remote_used` |
+| `invoices` (id, job_id, user_id, enc, rev, timestamps) | One encrypted record per invoice/estimate under the **job key**; members read, only the owner writes (server-enforced); deleted explicitly with the job and the user |
+| `api_keys.agent_scope` | now also `invoices` (`none\|read\|draft\|finalize`) and `research`; the research endpoint is sealed in `agent_bundle` |
 
 The legacy tables `tags`, `expense_tags`, `tag_tax_mappings`, `expense_tax_mappings`, `tax_settings`, `w2_forms`, `invoice_templates` are emptied for a user when their migration completes and are no longer written to.
 
@@ -449,7 +455,8 @@ calendar key (random 32 B) ──► encrypts the job title for the calendar API
 **Not protected against (be honest with users):**
 - **A malicious operator who changes the web app's JavaScript** can capture a password at login, as with any browser-delivered E2EE. Mitigations: strict CSP, signed/checksummed mobile bundles, and (roadmap) an audited native app or reproducible builds.
 - Because login uses a derived `authKey`, a hostile server that records it could attempt an **offline guess of the password** (600k PBKDF2 iterations make each guess expensive). Use a long password; an OPAQUE/PAKE login is on the roadmap.
-- **Metadata**: dates of jobs, counts, timestamps and who shares what are visible to the server.
+- **Metadata**: dates of jobs, counts, timestamps and who shares what are visible to the server, including how many invoices a job has and when they changed (never their status, totals or customer).
+- **Invoice e-mail** (opt-in, off by default): pressing Send passes the PDF through the server in memory to attach it to a message; it is not stored or logged. **AI draft and research** send only the vehicle, services and symptoms (never the customer's name, phone, e-mail or street address) to the endpoint you configure. **Agent invoice permission** lets that key read invoice contents of the jobs it covers; `finalize` lets it confirm estimates.
 - **Opt-in features**: background Google sync (server reads job titles + dates; Google too), **reports with figures** (server can read an aggregate per-day/job/category summary at send time; the figures then travel by e-mail), and cloud OCR (the image passes through the server to your provider).
 - **No automatic key rotation on member removal**: access is cut off server-side immediately, but a removed member keeps any data they already downloaded and the old job key. For a hard cut-off, create a new job and move entries (roadmap: one-click re-keying).
 - **Lost password *and* recovery phrase = data is unrecoverable**, by design.
@@ -491,6 +498,7 @@ Configured in [src/App.tsx](../src/App.tsx) using `react-router` v7:
 | `/dashboard` | `ProtectedRoute` | `Dashboard.tsx` | Project grid, calendar toggle, key migration |
 | `/reports` | `ProtectedRoute` | Redirects to `/dashboard?view=reports` | Opens `ReportsWorkspace.tsx` |
 | `/taxes` | `ProtectedRoute` | `TaxCenter.tsx` | Tax Hub: Schedule C, SE, 1040, 1040-ES, CPA export |
+| `/invoices` | `ProtectedRoute` | `Invoices.tsx` | Invoices & estimates workspace; deep links `?job=<id>` and `?open=<invoiceId>` |
 | `/jobs/:id` | `ProtectedRoute` | `Job.tsx` | Core transaction workspace, receipt OCR, wishlists |
 | `/settings` | `ProtectedRoute` | `Settings.tsx` | Tabbed settings: Profile, Invoices, Tags, AI, Reports |
 | `/admin` | `ProtectedRoute` (admin-only data is enforced server-side) | `AdminPortal.tsx` | System stats, user management, license & tier settings |
@@ -548,6 +556,9 @@ Copy `.env.example` to `.env`. Configuration is parsed and validated in [server/
 | `CSP_MODE` | `report-only` to stage a CSP rollout | enforce | Optional |
 | `ADMIN_EMAIL` | The existing account with this email is promoted to admin at boot; the address cannot be registered by anyone else once a user exists | — | Recommended |
 | `DISABLE_REGISTRATION` | Block public sign-ups | `false` | Optional |
+| `AI_ALLOWED_HOSTS` | Hosts (`host` or `host:port`, comma separated) allowed to use plain http and private addresses for AI endpoints, e.g. a LAN model server. Preferred over `ALLOW_PRIVATE_AI_URLS` | — | Optional |
+| `AI_RESEARCH_TIMEOUT_MS` | Longest a research/draft call may run | `600000` | Optional |
+| `INVOICE_EMAIL_DAILY_LIMIT` | Invoice e-mails per user per day | `30` | Optional |
 | `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `EMAIL_FROM` | Outbound email (STARTTLS required on non-465 ports). If unset, emails are skipped and logged | port `587` | Optional |
 | `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` `GOOGLE_REDIRECT_URI` | Google Calendar OAuth 2.0 | — | Optional |
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | Firebase Admin credentials for push notifications | `./secrets/firebase-adminsdk.json` | Optional |
@@ -598,7 +609,7 @@ Admin rights come **only** from the `users.is_admin` flag (no e-mail matching at
 
 ## 11c. Testing
 
-`npm test` boots a throwaway server (temp database, no SMTP/Firebase/Google, relaxed rate limits) and runs six suites with the real client code:
+`npm test` boots a throwaway server (temp database, no SMTP/Firebase/Google, relaxed rate limits) and runs these suites with the real client code:
 
 | Suite | Covers |
 |---|---|
@@ -608,6 +619,13 @@ Admin rights come **only** from the `users.is_admin` flag (no e-mail matching at
 | `migration` | A seeded pre-encryption account (and 120-job account) migrated end to end; legacy plaintext verified gone from DB, WAL and uploads |
 | `examples` | The documented Node, browser and (if installed) Python decrypt clients and the published test vector |
 | `reports` | Report math (trend, winners, loss leaders), the opt-in/opt-out lifecycle, nothing readable in the database, rendered e-mails with and without figures |
+| `agent` | Agent API (`/api/agent/v1`): key scoping, validation, numbering, description append, plus characterization tests that pin current behavior |
+| `agent.invoices` | Structured job intake, `external_ref` idempotency, the invoice permission levels (none < read < draft < finalize), estimate-only creation, locked final invoices, ciphertext-only storage |
+| `invoice.e2ee` | Encrypted invoice storage: revisions and 409s, members read / owner writes, non-members 404, no plaintext in the database, ciphertext bound to its record, cascades, byte-identical round trip |
+| `ai.relay` | AI relays against a stub provider: SSRF guard and `AI_ALLOWED_HOSTS`, task polling/isolation/cancel, **UI-created jobs are never auto-researched**, API-posted jobs on research-enabled keys are researched once, injected output changes nothing |
+| `mailer` | The e-mailer: attachment bytes equal the client PDF, header injection and link allow-list, size/recipient limits, daily cap |
+| `invoice.core` · `invoice.sheet` · `invoice.parity` · `invoice.layout2` | Pure suites (no server): the original app's math, hostile-JSON normalization, the sheet view-model, **byte-for-byte PDF parity** with the vendored original (`tests/reference/automotive/`, 1,300 random invoices), and the opt-in layout 2 |
+| `invoice.ge` · `invoice.ui` | Settings, packages, intake fixtures, prefill and rate adoption, estimate→final, pay links, the sales-tax split, AI draft and research merging · server-rendered smoke tests of the React components |
 
 ---
 
@@ -643,3 +661,11 @@ Admin rights come **only** from the `users.is_admin` flag (no e-mail matching at
 - Calendar-only API keys with caller-side decryption; opt-in server-side Google sync.
 - Client-side reports, tax engine, invoice numbering, recurring entries; one-time resumable migration of existing accounts.
 - Roadmap: re-keying on member removal, OPAQUE login, reproducible/native builds, encrypted offline queue.
+
+### Phase 6: Invoicing 2.0
+- A native **Invoices & Estimates** workspace (a tab on the dashboard) replaces the old one-page screenshot generator: the original standalone app's features, layout and PDF output ported to React + TypeScript (PDF bytes verified identical against the original), user-defined **Service Packages**, a live paper preview, history, JSON import/export, print and PDF.
+- **Fees and detail fields are the user's own** (any trade): a document carries labelled fee lines and detail fields instead of the original app's fixed fee rows and vehicle box, and a website can fill them by variable name (`fields.<name>`, `quote.base_fee`, `quote.variables`). The shop profile is set once in Settings → Invoices.
+- Documents are saved as small encrypted JSON records under the job key; they are **generated as Estimates** and become Final Invoices only through a recorded confirmation (a person, or an agent key with the `finalize` permission).
+- The **website is the source of truth for rates** (a posted `quote` becomes the estimate's rate and fee); the job's intake is parsed and normalized, and estimates are drafted automatically for API-posted jobs. **Payments** (PayPal / Venmo / Cash App / Zelle links, "How to pay" on the PDF) are recorded by hand and become income entries with an optional per-user **sales-tax split**.
+- Optional **AI**: draft an estimate's hours (never prices) and an **AI Research** button; the website's research step moved into GlassExpense, running only for jobs posted by research-enabled API keys. An internal **e-mailer** sends the PDF.
+- See [INVOICING_PLAN.md](INVOICING_PLAN.md) for the design and decisions, and [API.md §3A](API.md#3a-agent-api-for-automations-and-ai-agents-opt-in-keys) for the agent contracts.

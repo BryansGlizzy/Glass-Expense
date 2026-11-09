@@ -5,9 +5,9 @@ import { api, getSession, heldJobKeys } from './session';
  * Agent access for API keys (opt-in, see server/agent-keys.ts). The server can only use the job keys this browser hands over for a
  * key the user explicitly enabled. Keys that cover "all jobs" are topped up here whenever new jobs appear.
  */
-export interface AgentBundleBody { calendar_key: string; inbox: string; jobs: Record<string, string> }
+export interface AgentBundleBody { calendar_key: string; inbox: string; jobs: Record<string, string>; research?: Record<string, unknown> }
 
-export async function buildAgentBundle(apiKeyId: string, jobIds: string[] | null): Promise<AgentBundleBody> {
+export async function buildAgentBundle(apiKeyId: string, jobIds: string[] | null, research?: Record<string, unknown>): Promise<AgentBundleBody> {
   const s = getSession();
   const held = heldJobKeys();
   const ids = jobIds ?? [...held.keys()];
@@ -17,7 +17,7 @@ export async function buildAgentBundle(apiKeyId: string, jobIds: string[] | null
     if (!k) throw new Error('You do not hold the key for one of the selected jobs yet.');
     jobs[id] = C.toB64(k);
   }
-  return { calendar_key: C.toB64(s.keys.calendarKey), inbox: C.toB64(await C.agentInboxKey(s.keys.masterKey, apiKeyId)), jobs };
+  return { calendar_key: C.toB64(s.keys.calendarKey), inbox: C.toB64(await C.agentInboxKey(s.keys.masterKey, apiKeyId)), jobs, ...(research ? { research } : {}) };
 }
 
 let lastFingerprint = '';

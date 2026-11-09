@@ -1,7 +1,7 @@
 import dns from 'dns/promises';
 import net from 'net';
 import crypto from 'crypto';
-import { ALLOW_PRIVATE_AI_URLS } from './config.js';
+import { ALLOW_PRIVATE_AI_URLS, AI_ALLOWED_HOSTS } from './config.js';
 
 // ── Hashing ─────────────────────────────────────────────────────────────────
 export const sha256 = (value: string): string => crypto.createHash('sha256').update(value).digest('hex');
@@ -124,11 +124,13 @@ export const assertSafeOutboundUrl = async (raw: unknown): Promise<string> => {
     throw new ValidationError('Base URL is not a valid URL');
   }
   if (url.username || url.password) throw new ValidationError('Base URL must not contain credentials');
-  if (url.protocol !== 'https:' && !(ALLOW_PRIVATE_AI_URLS && url.protocol === 'http:')) {
+  // Hosts the operator listed in AI_ALLOWED_HOSTS may use http and private addresses; nothing else gets that exception.
+  const allowlisted = AI_ALLOWED_HOSTS.includes(url.host.toLowerCase());
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && (ALLOW_PRIVATE_AI_URLS || allowlisted))) {
     throw new ValidationError('Base URL must use https');
   }
 
-  if (!ALLOW_PRIVATE_AI_URLS) {
+  if (!ALLOW_PRIVATE_AI_URLS && !allowlisted) {
     const host = url.hostname.replace(/^\[|\]$/g, '');
     const addresses = net.isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true }).catch(() => []);
     if (addresses.length === 0) throw new ValidationError('Base URL host could not be resolved');

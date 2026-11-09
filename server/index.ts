@@ -21,6 +21,9 @@ import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerAgentRoutes } from './routes/agent.js';
 import { serverCryptoAvailable } from './server-crypto.js';
 import { registerOcrRoutes } from './routes/ocr.js';
+import { registerAiRoutes } from './routes/ai.js';
+import { registerInvoiceMailRoutes } from './routes/invoices-mail.js';
+import { registerResearchWorker } from './research.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -126,6 +129,9 @@ registerDataRoutes(app, io);
 registerLegacyRoutes(app);
 registerAgentRoutes(app, io);
 registerOcrRoutes(app);
+registerAiRoutes(app);
+registerInvoiceMailRoutes(app);
+registerResearchWorker(io);
 
 // SaaS module (plan limits) — loaded after the routes so its placeholder routes cannot shadow them.
 if (IS_SAAS) {

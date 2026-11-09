@@ -605,3 +605,15 @@ GlassExpense adheres to strict IRS audit defense standards (Revenue Procedure 98
 3. **Audit Ledger Completeness**:
    - Every deductible transaction includes: Date, Merchant/Description, Project/Client Name, Schedule C Line Item, Deductible Amount, and Verified Receipt Timestamp.
    - The ledger can be printed or exported as a PDF package containing all receipt images alongside the Schedule C line reconciliation.
+
+---
+
+## Income from invoices and sales tax collected
+
+Invoice totals alone **never** count as income. Income is created only when you press **Record payment** on a final invoice, which adds an income entry to the job (with an id derived from the invoice and payment, so two devices cannot post it twice). The Tax Center already sums income entries, so these payments flow into gross receipts like any other income.
+
+- **No tax on the invoice:** the income entry equals the payment.
+- **Tax on the invoice:** the tax portion of each payment, `round(payment × tax ÷ grand total, 2)`, is split out. By default the income entry is the payment **minus** that portion (money owed to the state is not your revenue); a per-user setting (Settings → Invoices → Sales tax) books the full payment instead if your accountant wants gross receipts. Example: $100 + 6% tax = $106; paying $106 books $100 income and $6 tax collected; paying $53 first books $50 and $3.
+- The tax collected per payment is stored on the invoice and can be summed per period for remittance (`salesTaxCollected` in `src/invoice/salestax.ts`).
+
+This is bookkeeping logic, not tax advice. Users who charge sales tax should confirm the treatment with their accountant.

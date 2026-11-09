@@ -10,10 +10,12 @@ import { api, hasSession, rawFetch, HttpError } from './session';
 import { jobRoutes } from './handlers/jobs';
 import { entryRoutes } from './handlers/entries';
 import { taxRoutes } from './handlers/tax';
+import { invoiceRoutes } from './handlers/invoices';
+import { invoicingRoutes } from './handlers/invoicing';
 import { Route, Req, Res } from './handlers/types';
 import { scheduleSnapshotRefresh } from './reportSnapshot';
 
-const routes: Route[] = [...jobRoutes, ...entryRoutes, ...taxRoutes];
+const routes: Route[] = [...jobRoutes, ...entryRoutes, ...taxRoutes, ...invoiceRoutes, ...invoicingRoutes];
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
