@@ -48,6 +48,7 @@ docker run -d --name glassexpense --restart unless-stopped \
 ```
 
 - **Data** lives in the `/data` volume (database, receipts, OTA bundles). Back the volume up as a whole; never expose it.
+- **Mobile OTA:** on every start the entrypoint zips the image's built web app into `/data/updates` and publishes it to the Android app, but only when it differs from what is already published (restarts of the same image change nothing). Set `OTA_AUTO_PUBLISH=0` to turn this off, `OTA_NOTES="..."` for the release notes shown in the app.
 - **Required:** `JWT_SECRET` (≥ 32 chars) and `APP_URL` (your public https origin). The container exits at boot otherwise. Optional features (`SERVER_WRAP_KEY` for agent access / report figures / background Google sync, SMTP, Google OAuth) are set in the same `.env`.
 - Put a TLS reverse proxy in front; allow request bodies ≥ 16 MB and WebSockets, and keep `TRUST_PROXY` equal to the number of proxy hops. Run **one** container (the hourly schedulers are in-process).
 - Health: `GET /api/info` (the image has a built-in `HEALTHCHECK`). Logs: `docker logs -f glassexpense`.
@@ -63,7 +64,8 @@ docker run -d --name glassexpense --restart unless-stopped \
 | `npm start` | Production server |
 | `npm run serve` | Build, then start in production |
 | `npm run build` | Frontend production build (also self-hosts the Tesseract OCR assets) |
-| `npm run build:ota` | Package `dist/` as a mobile OTA bundle into `data/updates/` |
+| `npm run build:ota` | Build, then package `dist/` as a mobile OTA bundle into `data/updates/` (auto-bumps the patch version; `-- 1.2.3 "notes"` to set them). `OTA_SKIP_BUILD=1` zips the existing `dist/`; `OTA_ONLY_IF_CHANGED=1` publishes nothing if `dist/` is unchanged |
+| `scripts/update.sh` | Server updater (run as root): stop, zip backup, `git pull`, `npm ci`, build, restart, then publish the OTA bundle (`BUILD_OTA=0` to skip, `OTA_NOTES` for notes) |
 | `npm run admin:promote -- <email>` | Grant admin rights to an existing account |
 | `npm test` | End-to-end encryption test suites against a throwaway server (temp DB, no real credentials) |
 | `npm run lint` | Type-check (`tsc --noEmit`) |
@@ -75,7 +77,7 @@ docker run -d --name glassexpense --restart unless-stopped \
 server/      Express app, config, security helpers, SQLite schema, email, Google Calendar, SaaS limits
 src/         React app (pages, components, context, utils) and src/e2ee/ — the browser-side encryption layer
 tests/       Test suites run by `npm test`
-scripts/     OTA bundler, OCR asset copier, admin promotion
+scripts/     Server updater, OTA bundler, Docker entrypoint, OCR asset copier, admin promotion
 docs/        All documentation, plus tested calendar-API client examples in docs/examples/
 android/     Capacitor Android project
 data/        RUNTIME DATA (gitignored): data.db, uploads/, updates/   (override with DATA_DIR)

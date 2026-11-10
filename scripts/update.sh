@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Production updater: stop service -> zip backup -> git pull -> install/build -> start service.
+# Production updater: stop service -> zip backup -> git pull -> install/build -> start service -> publish OTA bundle.
 # Run on the server as root:  /opt/webserver/glassexpense/scripts/update.sh
 #
 # Override defaults via the environment, e.g.  SERVICE=glassexpense BRANCH=main ./update.sh
@@ -14,6 +14,8 @@ SERVICE="${SERVICE:-$APP_NAME}"
 BRANCH="${BRANCH:-main}"
 KEEP_BACKUPS="${KEEP_BACKUPS:-14}"   # newest N zips kept; 0 = keep everything
 HEALTH_URL="${HEALTH_URL:-}"         # optional, e.g. http://127.0.0.1:3000/ ; checked after start
+BUILD_OTA="${BUILD_OTA:-1}"          # 1 = publish the mobile OTA bundle after a healthy start; 0 = skip
+OTA_NOTES="${OTA_NOTES:-}"           # release notes shown in the app's update dialog (default: "Release vX.Y.Z")
 
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -90,6 +92,18 @@ sleep 3
 systemctl is-active --quiet "$SERVICE" || die "$SERVICE is not active after start; check: journalctl -u $SERVICE -n 50"
 if [[ -n "$HEALTH_URL" ]]; then
   curl -fsS -o /dev/null --max-time 10 "$HEALTH_URL" || die "health check failed: $HEALTH_URL"
+fi
+
+# Publish the mobile OTA bundle only once the new release is confirmed healthy. It zips the dist/ built above
+# (no second vite build) into <DATA_DIR>/updates and is skipped when the web bundle did not change. A failure here
+# is reported but does not undo the release: the web app is already live; re-run `npm run build:ota` to retry.
+if (( BUILD_OTA )); then
+  log "Publishing OTA bundle"
+  if OTA_SKIP_BUILD=1 OTA_ONLY_IF_CHANGED=1 npm run build:ota -- "" "${OTA_NOTES:-}"; then
+    :
+  else
+    printf '\033[1;33mWARNING:\033[0m OTA bundle was not published; run: cd %s && npm run build:ota\n' "$APP_DIR" >&2
+  fi
 fi
 
 if (( KEEP_BACKUPS > 0 )); then

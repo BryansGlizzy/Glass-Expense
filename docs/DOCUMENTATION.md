@@ -57,7 +57,7 @@ glassexpense/
 │   └── examples/                     # Tested caller-decrypt clients (Node, browser, Python) + test vector
 ├── public/                           # Static assets (icons); vendor/tesseract is generated (gitignored)
 ├── scripts/
-│   ├── build-ota.js · copy-tesseract-assets.mjs · promote-admin.ts
+│   ├── update.sh · build-ota.js · docker-entrypoint.sh · copy-tesseract-assets.mjs · promote-admin.ts
 │   └── test-e2e.sh                   # `npm test`: boots a throwaway server and runs every suite
 ├── tests/                            # crypto, server, client-layer, migration and example suites
 │
@@ -591,6 +591,10 @@ The repository ships a multi-stage `Dockerfile` (build stage compiles the fronte
 docker compose up -d --build
 docker exec -it <container> node_modules/.bin/tsx scripts/promote-admin.ts you@example.com
 ```
+**OTA in the container.** `dist/` is baked into the image, so `scripts/docker-entrypoint.sh` runs `build-ota.js` (with `OTA_SKIP_BUILD=1 OTA_ONLY_IF_CHANGED=1`) before starting the server: the web bundle is zipped into `/data/updates` and `version.json` is written only when `dist/` differs from the last published bundle (content hash stored as `distHash`). Restarting an unchanged image never bumps the version; pulling a new image publishes the next patch version automatically. A failure to publish is logged and the server still starts. `OTA_AUTO_PUBLISH=0` disables it; `OTA_NOTES` sets the release notes. `archiver` is therefore a production dependency.
+
+**Bare-metal updates.** `scripts/update.sh` (root) does the same job without Docker: stop, zip backup, fast-forward `git pull`, `npm ci`, `npm run build`, start, health check, then publish the OTA bundle from the fresh `dist/`. The OTA step runs only after a healthy start and is non-fatal (the web release stays live; re-run `npm run build:ota`). `BUILD_OTA=0` skips it, `OTA_NOTES` sets the notes. `build-ota.js` reads `DATA_DIR` from `.env` like the server.
+
 See the README "Docker" section for the plain `docker run` form, upgrades and publishing. Keep exactly one container running.
 
 ### Upgrading an existing deployment to this layout
