@@ -148,7 +148,7 @@ export async function drainSyncQueue(
  * can never see (or submit) the previous user's data.
  */
 export async function clearLocalUserData(): Promise<void> {
-  // Working copies of invoices (tab-scoped plaintext) must not outlive the session (docs/INVOICING_PLAN.md T10).
+  // Working copies of invoices (tab-scoped plaintext) must not outlive the session (docs/DOCUMENTATION.md T10).
   try { for (const k of Object.keys(sessionStorage)) if (k.startsWith('ge.invoice.')) sessionStorage.removeItem(k); } catch { /* storage unavailable */ }
   try {
     const db = await getDB();

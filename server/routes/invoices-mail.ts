@@ -7,7 +7,7 @@ import { isAllowedPayUrl } from '../../src/invoice/paylinks.ts';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 /**
- * Internal invoice e-mailer (docs/INVOICING_PLAN.md §5.12). The PDF is generated in the browser and passes through the server in
+ * Internal invoice e-mailer (docs/DOCUMENTATION.md §13.10). The PDF is generated in the browser and passes through the server in
  * memory: an explicit, opt-in trade-off from end-to-end encryption (the browser only calls this when the user enabled e-mail in
  * Settings, with that explanation). Session only: agents cannot send. Nothing is stored and content is never logged.
  *

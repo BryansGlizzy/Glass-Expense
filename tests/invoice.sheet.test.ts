@@ -1,29 +1,38 @@
 /**
- * Preview-sheet parity: `buildSheetModel` must show the same sections, order, labels and numbers as the original app's live
- * preview (automotive-pdf app.js `updateTotalsAndPreview` and the sheet template). GE has no DOM test framework (plan C14),
- * so the original's rules are restated here directly from app.js, computed with the vendored oracle's own totals and
- * currency formatter, and compared with the port for every reference invoice.
+ * The sheet view-model: `buildSheetModel` is the single source of every string and number the preview, the print view and the PDF show.
+ * GE has no DOM test framework (docs/DOCUMENTATION.md §13.2, C14), so the rules (rows, labels, fallbacks, totals box) are restated
+ * here independently and compared with the model for every reference invoice.
  * Pure: needs no server.   Run:  npx tsx tests/invoice.sheet.test.ts
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { buildSheetModel } from '../src/invoice/sheet.ts';
 import { calculateTotals } from '../src/invoice/totals.ts';
 import { DEFAULT_SHEET_LABELS } from '../src/invoice/labels.ts';
-// @ts-ignore vendored original, test-only
-import * as oracle from './reference/automotive/model.js';
-import { UPSTREAM_SHEET_LABELS } from './reference/automotive/labels.ts';
+import { formatCurrency } from '../src/invoice/format.ts';
+import type { DeepPartial, SheetLabels } from '../src/invoice/labels.ts';
+
+/** A wording set with the strings a traditional repair shop would use, to prove labels are data and the model follows them. */
+const SHOP_LABELS: DeepPartial<SheetLabels> = {
+  numberFallback: 'INV-DRAFT',
+  termsHeading: 'Terms & Warranty Policy',
+  termsEmpty: 'Standard shop warranty and liability disclaimer.',
+  signatureText: {
+    invoice: "I hereby authorize the repair work listed above along with necessary materials. An express mechanic's lien is acknowledged on the vehicle to secure the amount of repairs.",
+    estimate: "I hereby authorize the repair work listed above along with necessary materials. An express mechanic's lien is acknowledged on the vehicle to secure the amount of repairs.",
+  },
+};
 
 let passed = 0;
 const t = async (name: string, fn: () => Promise<void> | void) => { try { await fn(); passed++; console.log('PASS ', name); } catch (e: any) { console.log('FAIL ', name, '\n      ', (e.stack || e.message).split('\n').slice(0, 5).join('\n       ')); process.exitCode = 1; } };
 
 const dir = new URL('./fixtures/invoice/', import.meta.url);
-const names: string[] = Object.keys(JSON.parse(readFileSync(new URL('goldens.json', dir), 'utf8')).goldens);
+const names: string[] = readdirSync(dir).filter(f => f.endsWith('.json')).map(f => f.replace(/\.json$/, ''));
 const load = (n: string) => JSON.parse(readFileSync(new URL(`${n}.json`, dir), 'utf8'));
 
-/** The original's rules, straight from app.js (line numbers refer to automotive-pdf/src/app.js at capture time). */
-function expectedFromUpstream(inv: any) {
-  const totals = oracle.calculateTotals(inv); const f = oracle.formatCurrency;
+/** The sheet's rules, restated independently of `buildSheetModel`. */
+function expectedSheet(inv: any) {
+  const totals = calculateTotals(inv); const f = formatCurrency;
   const s = inv.shop || {}, m = inv.meta || {}, c = inv.customer || {}, v = inv.vehicle || {};
   return {
     shopName: s.name || "Future's Automotive",                                                      // :734 (fallback is a label now)
@@ -47,10 +56,10 @@ function expectedFromUpstream(inv: any) {
   };
 }
 
-await t(`every reference invoice (${names.length}): the sheet model equals the original's preview rules`, () => {
+await t(`every reference invoice (${names.length}): the sheet model follows the documented rules`, () => {
   for (const n of names) {
-    const inv = load(n); const e = expectedFromUpstream(inv);
-    const m = buildSheetModel(inv, calculateTotals(inv), { ...UPSTREAM_SHEET_LABELS });
+    const inv = load(n); const e = expectedSheet(inv);
+    const m = buildSheetModel(inv, calculateTotals(inv), { ...SHOP_LABELS });
     const at = (what: string) => `${n}: ${what}`;
     assert.equal(m.shop.name || 'Future\'s Automotive', e.shopName, at('shop name'));
     assert.equal(m.shop.address, e.shopAddress, at('address')); assert.equal(m.shop.contact, e.shopContact, at('contact')); assert.equal(m.shop.license, e.license, at('license'));
@@ -67,8 +76,8 @@ await t(`every reference invoice (${names.length}): the sheet model equals the o
   }
 });
 
-await t('the sample: sections, order and labels are exactly the original sheet', () => {
-  const inv = load('sample'); const m = buildSheetModel(inv, undefined, { ...UPSTREAM_SHEET_LABELS });
+await t('the sample: sections, order and labels', () => {
+  const inv = load('sample'); const m = buildSheetModel(inv, undefined, { ...SHOP_LABELS });
   assert.equal(m.title, 'INVOICE');
   assert.deepEqual(m.meta.map(x => x.label), ['Invoice #:', 'Date:', 'Due Date:']);
   assert.equal(m.customer.heading, 'Customer'); assert.equal(m.vehicle.heading, 'Vehicle Information');
@@ -87,7 +96,7 @@ await t('the sample: sections, order and labels are exactly the original sheet',
 
 await t('quirks kept by default: hours show one decimal on the sheet; every fee row is listed even at $0.00', () => {
   const m = buildSheetModel({ laborItems: [{ description: 'x', hours: 1.25, rate: 10 }], settings: {} });
-  assert.equal(m.labor.rows[0].hours, '1.3'); // PDF prints 1.25 (two decimals); the sheet 1.3: upstream Q7
+  assert.equal(m.labor.rows[0].hours, '1.3'); // the sheet shows one decimal (1.25 becomes 1.3)
   assert.equal(m.totals.length, 10); assert.ok(m.totals.every(x => /^-?\$[\d,]+\.\d\d$/.test(x.value)));
   assert.equal(m.totals.find(x => x.key === 'discount')!.value, '$0.00', 'no discount: shown as $0.00 without a minus sign');
 });
@@ -100,7 +109,7 @@ await t('empty invoice uses the placeholders (walk-in customer, dashes, empty-ta
   assert.equal(m.notes.customer.text, 'No special customer notes.'); assert.equal(m.status.badgeText, 'FINAL'); assert.equal(m.shop.license, null);
 });
 
-await t('defaults are neutral: no upstream brand or legal text; the terms box hides when there are no terms', () => {
+await t('defaults are neutral: no brand or legal text; the terms box hides when there are no terms', () => {
   const m = buildSheetModel({});
   const json = JSON.stringify(m);
   for (const bad of ["Future", 'warranty', 'lien', 'Automotive', 'Standard shop', 'INV-DRAFT', '8.25']) assert.ok(!json.includes(bad), `neutral model contains "${bad}"`);

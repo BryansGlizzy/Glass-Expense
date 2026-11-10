@@ -10,11 +10,8 @@ export function feeAmount(f: Pick<FeeLine, 'kind' | 'value' | 'cap'>, labor: num
 }
 
 /**
- * The totals engine, ported unchanged from automotive-pdf `calculateTotals` (same rounding, same order of operations).
+ * The totals engine (one definition of the rounding and the order of operations).
  * Tolerant of missing/garbage input on purpose: it is also used on untrusted JSON before normalization.
- *
- * Note: the original PDF module carried a second, slightly different copy of this math with built-in fallbacks
- * (supplies 5 % capped at $35). Those fallbacks are discarded (plan D4); there is exactly one engine here.
  */
 export function calculateTotals(invoice: unknown): Totals {
   const inv = invoice as any;

@@ -2,7 +2,7 @@ import { addLaborItem, addPartItem, createId } from './model';
 import { FEE_KINDS, type FeeKind, type FeeLine, type Invoice } from './types';
 
 /**
- * Service Packages (docs/INVOICING_PLAN.md §5.7): the original app's "Quick Service Packages", made user-defined.
+ * Service Packages (docs/DOCUMENTATION.md §13.5): reusable sets of labor, parts, fees and a note, defined by the user.
  * Stored in the encrypted `invoice_packages` blob. Nothing here invents prices or hours.
  */
 
@@ -117,7 +117,7 @@ export function packagesFromServices(services: string[], existing: ServicePackag
   return services.filter(s => s.trim() && !have.has(norm(s))).map(s => normalizePackage({ id: createId('pkg'), name: s, matches: [s], order: ++order, labor: [{ description: '', technician: '', hours: 0, rate: null }] }));
 }
 
-/** The original app's six presets as an OPTIONAL starter. Their hours and prices are examples to edit or delete (plan §5.7). */
+/** Six automotive presets as an OPTIONAL starter. Their hours and prices are examples to edit or delete (docs/DOCUMENTATION.md §13.5). */
 export function automotiveStarter(): ServicePackage[] {
   const L = (description: string, hours: number, technician = ''): PackageLabor => ({ description, technician, hours, rate: null });
   const defs: Array<[string, string, string[], PackageLabor[]]> = [

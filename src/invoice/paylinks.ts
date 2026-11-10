@@ -1,7 +1,7 @@
 import type { InvoicingSettings, PaymentMethodKey } from './settings';
 
 /**
- * Payment methods and their links (docs/INVOICING_PLAN.md §5.11). Pure builders: adding another method is one entry. Handles are
+ * Payment methods and their links (docs/DOCUMENTATION.md §13.9). Pure builders: adding another method is one entry. Handles are
  * validated strictly because they end up in URLs that are printed and e-mailed. The provider URL formats were checked against the
  * providers' own documentation when this was written; verify them again before relying on a new one (they can change).
  *

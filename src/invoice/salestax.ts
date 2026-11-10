@@ -4,7 +4,7 @@ import { calculateTotals } from './totals';
 import type { Invoice, Totals } from './types';
 
 /**
- * Payments and sales tax bookkeeping (docs/INVOICING_PLAN.md §5.11, decision D9). Tax is optional and per user; the rule is driven
+ * Payments and sales tax bookkeeping (docs/DOCUMENTATION.md §13.9, decision D9). Tax is optional and per user; the rule is driven
  * by the invoice itself: with no tax on the invoice nothing changes; with tax, the tax portion of each payment is split out of the
  * income entry (default) so Schedule C gross receipts do not include money owed to the state. This is bookkeeping logic, not tax
  * advice: users who charge tax should confirm the treatment with their accountant.

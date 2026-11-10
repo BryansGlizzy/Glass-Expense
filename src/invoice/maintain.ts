@@ -1,5 +1,5 @@
 /**
- * Work the owner's browser does when the app opens (docs/INVOICING_PLAN.md §5.13, §5.16, constraint C17): the server cannot read the
+ * Work the owner's browser does when the app opens (docs/DOCUMENTATION.md §13.11, §13.12, constraint C17): the server cannot read the
  * user's settings, so anything created by an API key or an agent is finished here.
  *
  *   1. completes agent-made invoices (pending steps: defaults, terms swap)

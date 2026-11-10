@@ -410,7 +410,7 @@ export function registerDataRoutes(app: Express, io: Server) {
     res.json({ success: true });
   });
 
-  // ── Invoices (docs/INVOICING_PLAN.md §5.8) ────────────────────────────────────────────────────────────────────
+  // ── Invoices (docs/DOCUMENTATION.md §13.6) ────────────────────────────────────────────────────────────────────
   // Ciphertext only, sealed under the job key. Active members may READ; only the job owner may write, enforced here (a member's
   // client could otherwise write, because members hold the job key). Optimistic concurrency through `rev`.
   const MAX_INVOICE_ENC = 100 * 1024;

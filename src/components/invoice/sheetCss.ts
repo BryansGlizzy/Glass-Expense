@@ -1,5 +1,5 @@
 /**
- * Styles for the paper preview sheet. The sheet keeps the original app's paper design (white page, typography, card boxes, tables,
+ * Styles for the paper preview sheet. The sheet keeps a paper design (white page, typography, card boxes, tables,
  * totals box, status badges) regardless of GE's dark glass theme, scoped under `.ge-sheet` so nothing leaks. Kept as a string so the
  * component can be rendered without a CSS loader (server-side smoke tests).
  */

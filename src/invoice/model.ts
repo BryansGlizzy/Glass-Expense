@@ -1,11 +1,10 @@
 import type { GeBlock, Invoice, InvoiceMeta, InvoiceNotes, InvoiceSettings, LaborItem, Party, PartItem, ShopInfo, Vehicle } from './types';
 
 /**
- * Immutable invoice model functions, ported from automotive-pdf `model.js`.
+ * Immutable invoice model functions.
  *
- * Deliberately NOT ported (plan D4 / §4.3): the demo shop, the 12-month warranty text, tax 8.25 %, supplies 5 % capped at
- * $35, `INV-YYYY-1001` numbering, a +14 day due date, the rate-100 / 1-hour "Add Labor" defaults, the six preset prices and
- * the sample customer. A new invoice starts blank; real values come from the user's Settings and the job (`prefill.ts`, later).
+ * There are no built-in business defaults (decision D4, docs/DOCUMENTATION.md §13.2): no demo shop, warranty text, tax rate, fee, numbering
+ * scheme, due date or labor rate. A new invoice starts blank; real values come from the user's Settings and the job (`prefill.ts`).
  */
 
 let idSequence = 0;
@@ -35,7 +34,7 @@ export interface InvoiceOverrides {
   ge?: GeBlock;
 }
 
-/** A blank invoice. Every field is explicit and neutral; `overrides` is merged section by section like upstream. */
+/** A blank invoice. Every field is explicit and neutral; `overrides` is merged section by section. */
 export function createEmptyInvoice(overrides: InvoiceOverrides | null = {}, now: Date = new Date()): Invoice {
   const source = (overrides && typeof overrides === 'object' ? overrides : {}) as InvoiceOverrides;
   const base: Invoice = {

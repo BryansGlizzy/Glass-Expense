@@ -3,7 +3,7 @@ import { DISCOUNT_TYPES, DOC_TYPES, FEE_KINDS, FIELD_TYPES, INVOICE_STATUSES, ty
 
 /**
  * `normalizeInvoice` is the single gate for every invoice that did not come from this editor: files the user imports,
- * invoices on jobs they joined, and anything an agent writes (plan §5.8, T1). It never throws, always returns a complete,
+ * invoices on jobs they joined, and anything an agent writes (docs/DOCUMENTATION.md §13.6, T1). It never throws, always returns a complete,
  * well-typed invoice, and guarantees the math in `totals.ts` and the PDF writer can run on it:
  *
  *   - numbers are coerced and clamped (NaN / strings / Infinity / negatives become safe values),
@@ -187,7 +187,7 @@ export function normalizeInvoice(raw: unknown, opts: NormalizeOptions = {}): Inv
   return out;
 }
 
-/** The plain invoice JSON a user can keep (same shape as the standalone app's export). */
+/** The plain invoice JSON a user can keep (the document itself). */
 export function exportInvoiceJson(invoice: Invoice, { includeGe = false } = {}): string {
   const { ge, ...plain } = invoice;
   return JSON.stringify(includeGe && ge ? { ...plain, ge } : plain, null, 2);

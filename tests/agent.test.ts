@@ -141,7 +141,7 @@ await t('an "all jobs" key is topped up when the browser later creates a job; a 
 });
 // ── Characterization tests ───────────────────────────────────────────────────────────────────────────────────────
 // These pin down what the agent routes do TODAY (response shapes, validation, numbering, limits) so that the planned
-// extraction of server/agent-core.ts (docs/INVOICING_PLAN.md K13) can be proven behaviour-preserving. When a later phase
+// extraction of server/agent-core.ts (docs/DOCUMENTATION.md §13.12) can be proven behaviour-preserving. When a later phase
 // intentionally changes one of them (e.g. P5 adds client_phone/intake), update the test in the same change.
 
 // client_phone and intake were added by Invoicing 2.0 (P5).

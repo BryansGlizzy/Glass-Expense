@@ -4,10 +4,10 @@ import type { JobIntake } from './intake';
 import type { Invoice } from './types';
 
 /**
- * AI-drafted estimates (docs/INVOICING_PLAN.md §5.13). The model proposes LABOR HOURS and part descriptions only: it never produces
+ * AI-drafted estimates (docs/DOCUMENTATION.md §13.11). The model proposes LABOR HOURS and part descriptions only: it never produces
  * prices or totals (rates come from the user's variables, the app computes the totals), it is told the customer's text is data,
  * its answer must be strict JSON that is validated and clamped here, and the result is always an Estimate a person verifies.
- * The brief that leaves the device contains no customer name, phone, e-mail or street address (plan T6).
+ * The brief that leaves the device contains no customer name, phone, e-mail or street address (threat T6).
  */
 
 export interface DraftBrief { services: string[]; vehicle: string; partsPolicy: JobIntake['partsPolicy']; symptoms: string; packages: Array<{ name: string; hours: number }>; medianHours?: number; research?: string }

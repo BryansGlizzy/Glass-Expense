@@ -96,7 +96,7 @@ export const ALLOW_PRIVATE_AI_URLS = process.env.ALLOW_PRIVATE_AI_URLS === 'true
 export const AI_ALLOWED_HOSTS: string[] = (process.env.AI_ALLOWED_HOSTS || '').split(',').map(h => h.trim().toLowerCase()).filter(Boolean);
 // Longest a single AI research/draft call may run, in milliseconds (the website's old Hermes step used up to 10 minutes).
 export const AI_RESEARCH_TIMEOUT_MS = Math.min(900_000, Math.max(10_000, Number(process.env.AI_RESEARCH_TIMEOUT_MS) || 600_000));
-// Daily cap on invoice e-mails per user (docs/INVOICING_PLAN.md §5.12). There are no tier-based limits yet (decision D14).
+// Daily cap on invoice e-mails per user (docs/DOCUMENTATION.md §13.10). There are no tier-based limits yet (decision D14).
 export const INVOICE_EMAIL_DAILY_LIMIT = Math.max(1, Number(process.env.INVOICE_EMAIL_DAILY_LIMIT) || 30);
 
 // Content-Security-Policy mode: 'enforce' (default) or 'report-only' for first rollout.

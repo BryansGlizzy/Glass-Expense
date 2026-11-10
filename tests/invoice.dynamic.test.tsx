@@ -1,7 +1,7 @@
 /**
  * User-defined fees and detail fields ("dynamic" documents). A document that carries a `fees` array uses labelled fee lines instead of
- * the original app's four fixed fee fields, and one that carries `details` shows the user's own fields instead of the vehicle box.
- * Original-format documents must behave exactly as before (invoice.parity / invoice.core cover that); here we prove the new model:
+ * the four fixed fee fields, and one that carries `details` shows the user's own fields instead of the vehicle box.
+ * Older documents without these arrays keep the fixed fields; here we prove the new model:
  * the math, hostile input, the sheet and PDF, settings migration, website variables filling fees and fields, upgrading agent-made
  * invoices without changing their total, package fees, shop details from settings, and the editor.
  * Pure: needs no server.   Run:  npx tsx tests/invoice.dynamic.test.tsx
@@ -16,7 +16,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { calculateTotals, feeAmount } from '../src/invoice/totals.ts';
 import { normalizeInvoice, normalizeFees, normalizeDetails } from '../src/invoice/normalize.ts';
 import { buildSheetModel } from '../src/invoice/sheet.ts';
-import { generatePdfBytes } from '../src/invoice/pdf/generate.ts';
+import { generateSheetPdf } from '../src/invoice/pdf/sheetPdf.ts';
 import { createEmptyInvoice, addLaborItem, addPartItem } from '../src/invoice/model.ts';
 import { defaultSettings, normalizeSettings, slugKey, quoteVariable, FIELD_PRESETS } from '../src/invoice/settings.ts';
 import { buildNewInvoice, fieldValue, refreshFromJob } from '../src/invoice/prefill.ts';
@@ -85,17 +85,19 @@ await t('sheet: fee lines, hidden zero discount and zero tax, the details box sh
 
 await t('PDF: fee lines replace the fixed rows, zero discount/tax rows disappear, the details box lists filled fields, the customer box widens when there are none', () => {
   const inv = base({ fees: [fee({ id: 'a', label: 'Trip charge', value: 45 }), fee({ id: 'b', label: 'Disposal', value: 12.5 })], details: { title: 'Job Site', fields: [{ key: 'site', label: 'Site', type: 'text', value: 'Warehouse 4' }, { key: 'po', label: 'PO #', type: 'text', value: '88123' }] } });
-  const s = text(generatePdfBytes(inv));
-  for (const yes of ['(Trip charge) Tj', '(Disposal) Tj', '(Grand Total) Tj', '(Job Site) Tj', '(Site: Warehouse 4) Tj', '(PO #: 88123) Tj', '($187.50) Tj']) assert.ok(s.includes(yes), yes);
-  for (const no of ['(Shop Supplies Fee)', '(Hazardous Waste Fee)', '(Travel Fee)', '(Misc. Fee)', '(Discount Amount)', '(Tax Amount)', '(VEHICLE DETAILS)']) assert.ok(!s.includes(no), no);
-  assert.ok(s.includes('258.00 76.00 re'), 'two boxes of 258 x 76');
-  const noDetails = text(generatePdfBytes({ ...inv, details: { title: 'Job Site', fields: [] } })); assert.ok(noDetails.includes('532.00 76.00 re') && !noDetails.includes('(Job Site) Tj'), 'customer box at full width');
-  const many = text(generatePdfBytes({ ...inv, details: { title: 'Details', fields: Array.from({ length: 6 }, (_, i) => ({ key: `k${i}`, label: `L${i}`, type: 'text' as const, value: `v${i}` })) } })); assert.ok(many.includes('258.00 102.00 re'), 'six lines make the boxes taller (13 x 6 + 24)');
-  const long = text(generatePdfBytes({ ...inv, details: { title: 'D', fields: [{ key: 'x', label: 'Notes', type: 'text', value: 'word '.repeat(80) }] } })); assert.ok(/\(Notes: word[^)]*\.\.\.\) Tj/.test(long), 'long values are clipped with an ellipsis');
-  assert.ok(text(generatePdfBytes({ ...inv, settings: { ...inv.settings, taxRate: 7 } })).includes('(Tax Amount) Tj'), 'tax row appears when a rate is set');
-  // original format untouched
-  const legacy = text(generatePdfBytes(base())); for (const yes of ['(Shop Supplies Fee)', '(Travel Fee)', '(Misc. Fee)', '(Tax Amount)', '(VEHICLE DETAILS)']) assert.ok(legacy.includes(yes), `original format still prints ${yes}`);
-  const sx = spawnSync('pdfinfo', ['-v']); if (!sx.error) { const f = path.join(mkdtempSync(path.join(os.tmpdir(), 'ge-dyn-')), 'd.pdf'); writeFileSync(f, generatePdfBytes(inv)); const r = spawnSync('pdfinfo', [f], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); assert.ok(!/error/i.test(r.stderr), r.stderr); }
+  const pdf = (i: any) => generateSheetPdf(buildSheetModel(i, calculateTotals(i)), { generatedAt: 'test' });
+  const s = text(pdf(inv)); const m = buildSheetModel(inv);
+  for (const l of m.totals) assert.ok(s.includes(`(${l.label}) Tj`) && s.includes(`(${l.value}) Tj`), `totals line ${l.label}`);
+  for (const yes of ['(Trip charge:) Tj', '(Disposal:) Tj', '(JOB SITE) Tj', '(SITE) Tj', '(Warehouse 4) Tj', '(PO #) Tj', '(88123) Tj', '($187.50) Tj']) assert.ok(s.includes(yes), yes);
+  for (const no of ['(Shop Supplies', '(Hazardous Waste', '(Travel Fee', '(Misc. Fee', '(Discount', '(Sales Tax', '(VEHICLE']) assert.ok(!s.includes(no), no);
+  const noDetails = text(pdf({ ...inv, details: { title: 'Job Site', fields: [] } })); assert.ok(!noDetails.includes('(JOB SITE) Tj') && noDetails.includes('(CUSTOMER) Tj'), 'no details box when there are no fields');
+  const many = text(pdf({ ...inv, details: { title: 'Details', fields: Array.from({ length: 6 }, (_, i) => ({ key: `k${i}`, label: `L${i}`, type: 'text' as const, value: `v${i}` })) } })); for (let i = 0; i < 6; i++) assert.ok(many.includes(`(v${i}) Tj`), `field ${i} listed`);
+  const long = pdf({ ...inv, details: { title: 'D', fields: [{ key: 'x', label: 'Notes', type: 'text', value: 'word '.repeat(80) }] } }); assert.ok(text(long).startsWith('%PDF-1.4') && text(long).includes('(word'), 'a very long value still produces a valid document');
+  const taxed = { ...inv, settings: { ...inv.settings, taxRate: 7 } }; const taxLine = buildSheetModel(taxed).totals.find(l => l.key === 'tax');
+  assert.ok(taxLine && text(pdf(taxed)).includes(`(${escapePdfTextWinAnsi(taxLine.label)}) Tj`), 'tax row appears when a rate is set');
+  // original-format documents (fixed fee fields and a vehicle box) are still read and printed
+  const legacy = text(pdf(base())); for (const yes of ['(Shop Supplies', '(Travel Fee', '(Misc. Fee', '(Sales Tax', '(VEHICLE INFORMATION) Tj']) assert.ok(legacy.includes(yes), `original format still prints ${yes}`);
+  const sx = spawnSync('pdfinfo', ['-v']); if (!sx.error) { const f = path.join(mkdtempSync(path.join(os.tmpdir(), 'ge-dyn-')), 'd.pdf'); writeFileSync(f, pdf(inv)); const r = spawnSync('pdfinfo', [f], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); assert.ok(!/error/i.test(r.stderr), r.stderr); }
 });
 
 await t('settings: older fixed-fee settings migrate to fees once; explicit lists are never re-seeded; defaults are blank; keys and prefixes are sanitized', () => {

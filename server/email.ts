@@ -182,7 +182,7 @@ export const sendReportEmail = async (toEmail: string, username: string, r: Buil
   }, 'report');
 };
 
-// ── Invoice e-mail (docs/INVOICING_PLAN.md §5.12) ───────────────────────────────────────────────────────────────
+// ── Invoice e-mail (docs/DOCUMENTATION.md §13.10) ───────────────────────────────────────────────────────────────
 export interface InvoiceEmail {
   shopName: string; replyTo?: string; to: string[]; cc: string[]; bcc: string[]; subject: string; text: string; html: string;
   pdf: Buffer; filename: string;

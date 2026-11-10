@@ -1,5 +1,5 @@
 /**
- * Invoicing settings and Service Packages (docs/INVOICING_PLAN.md §5.6-§5.7). Both live in the user's encrypted personal blobs:
+ * Invoicing settings and Service Packages (docs/DOCUMENTATION.md §13.5-§13.5). Both live in the user's encrypted personal blobs:
  * settings inside `invoice_template` (key `invoicing`, next to the legacy company fields) and packages in `invoice_packages`.
  */
 import { getBlob, setBlob } from '../store';

@@ -1,15 +1,15 @@
 /**
- * Invoice data model. This is the JSON shape of the standalone automotive-pdf app (so exported files interoperate), plus
- * `meta.docType` / `meta.layout` and an optional namespaced `ge` block that GlassExpense owns.
+ * Invoice data model. This is also the import/export file format: `meta`, `shop`, `customer`, `vehicle`, line items,
+ * `settings`, `notes`, optional `fees` / `details`, and an optional namespaced `ge` block that GlassExpense owns.
  *
  * Pure TypeScript, no DOM: shared by the browser and (where noted in the plan) the server.
  */
 
-/** Order matters: it is the order of the status dropdown. `Sent` is a GlassExpense addition (plan §5.10). */
+/** Order matters: it is the order of the status dropdown. `Sent` is a GlassExpense addition (docs/DOCUMENTATION.md §13.8). */
 export const INVOICE_STATUSES = ['Draft', 'Estimate', 'Approved', 'Paid', 'Overdue', 'Sent'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 /**
- * What people SEE for a status. The stored value stays `Draft` (the original app's JSON and the agent API use it), but on a final invoice
+ * What people SEE for a status. The stored value stays `Draft` (older files and the agent API use it), but on a final invoice
  * it reads "Final": the invoice is finished and not yet sent. An estimate that is still a draft keeps the word "Draft".
  */
 export function statusLabel(status: string, docType?: string): string {
@@ -31,7 +31,7 @@ export interface InvoiceMeta {
   status: InvoiceStatus;
   docType: DocType;
   /**
-   * PDF/sheet layout generation, pinned per invoice so reprints of a sent invoice never change (plan §4.3).
+   * PDF/sheet layout generation, pinned per invoice so reprints of a sent invoice never change (docs/DOCUMENTATION.md §13.4).
    * 1 = the original design (default). 2 is reserved for the optional hardening in P8.
    */
   layout: 1 | 2;
@@ -101,9 +101,9 @@ export interface InvoiceNotes {
 export type GeBlock = Record<string, unknown>;
 
 /**
- * User-defined fees (docs/INVOICING_PLAN.md, "dynamic fees"): any number of labelled lines, each a flat amount or a percentage of labor or
+ * User-defined fees (docs/DOCUMENTATION.md, "dynamic fees"): any number of labelled lines, each a flat amount or a percentage of labor or
  * of the subtotal (optionally capped, optionally taxable). An invoice that carries a `fees` array uses these INSTEAD of the four fixed
- * fee fields of the original app; an invoice without one (the original app's files) behaves exactly as before.
+ * fee fields; an invoice without one (older files) keeps the fixed fields and behaves as before.
  */
 export const FEE_KINDS = ['flat', 'percentOfLabor', 'percentOfSubtotal'] as const;
 export type FeeKind = (typeof FEE_KINDS)[number];

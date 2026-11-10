@@ -5,7 +5,7 @@ import type { InvoicingSettings } from './settings';
 import type { Invoice } from './types';
 
 /**
- * Estimate → Final Invoice (docs/INVOICING_PLAN.md §5.10). Generation always yields an Estimate; this is the only way to a Final
+ * Estimate → Final Invoice (docs/DOCUMENTATION.md §13.8). Generation always yields an Estimate; this is the only way to a Final
  * invoice, and it records WHO confirmed (a person in the app, or an agent whose key has `invoices: finalize`).
  */
 

@@ -1,11 +1,11 @@
-import type { DeepPartial, PdfLabels, SheetLabels } from './labels';
+import type { DeepPartial, SheetLabels } from './labels';
 import { isLogoDataUrl } from './logo';
 import { FEE_KINDS, FIELD_TYPES, type FeeKind, type FieldType } from './types';
 
 /**
- * The user's invoicing settings (docs/INVOICING_PLAN.md §5.6): shop profile, hourly rate, **user-defined fees**, **user-defined detail
+ * The user's invoicing settings (docs/DOCUMENTATION.md §13.5): shop profile, hourly rate, **user-defined fees**, **user-defined detail
  * fields**, tax, defaults, terms, payment methods, e-mail and automation. Stored inside the existing encrypted `invoice_template` blob
- * under `invoicing`. Every value is per user and nothing is inherited from the upstream app (plan D4). Pure, DOM-free.
+ * under `invoicing`. Every value is per user and nothing is built in (decision D4). Pure, DOM-free.
  *
  * Fees and detail fields are data, not code, so any trade can describe its own paperwork (a plumber's "Trip charge", a photographer's
  * "Venue", a mechanic's "Year / Make / Model"). A website or agent fills a detail field by posting a value under the field's `key`,
@@ -31,7 +31,7 @@ export interface InvoicingSettings {
   numbering: { prefix: string };
   rates: {
     hourlyRate: number;
-    /** When on, the latest rate and fee variables the website posted override your own for new documents (plan D3). */
+    /** When on, the latest rate and fee variables the website posted override your own for new documents (decision D3). */
     followWebsite: boolean;
     websiteQuote: WebsiteQuote | null;
   };
@@ -187,7 +187,7 @@ export function normalizeSettings(raw: unknown): InvoicingSettings {
   };
 }
 
-/** The hourly rate new documents start from: the website's latest quote wins while "follow website" is on (plan D3). */
+/** The hourly rate new documents start from: the website's latest quote wins while "follow website" is on (decision D3). */
 export function effectiveRates(s: InvoicingSettings): { hourlyRate: number; fromWebsite: boolean } {
   const q = s.rates.websiteQuote;
   if (s.rates.followWebsite && q && q.hourlyRate != null) return { hourlyRate: q.hourlyRate, fromWebsite: true };
@@ -200,11 +200,6 @@ export function quoteVariable(q: { baseFee?: number | null; variables?: Record<s
   if (key === 'base_fee') return q.baseFee == null ? undefined : q.baseFee;
   const v = q.variables?.[key];
   return typeof v === 'number' ? v : undefined;
-}
-
-/** PDF labels derived from the user's settings (signature text, footer brand). The structure of the PDF does not change. */
-export function pdfLabelsFor(s: InvoicingSettings): DeepPartial<PdfLabels> {
-  return { signatureText: { invoice: s.terms.invoiceSignature, estimate: s.terms.estimateSignature }, footerBrand: s.shop.name };
 }
 
 export function sheetLabelsFor(s: InvoicingSettings): DeepPartial<SheetLabels> {

@@ -1,5 +1,4 @@
 import { calculateTotals } from './totals';
-import { pdfFilename } from './pdf/generate';
 import { generateSheetPdf } from './pdf/sheetPdf';
 import { buildSheetModel, type SheetModel } from './sheet';
 import { payOptions, type PayOption } from './paylinks';
@@ -23,6 +22,12 @@ export function payInfo(invoice: Invoice, s: InvoicingSettings): { options: PayO
   if (invoice.meta.docType !== 'invoice') return { options: [], boxes: [] };
   const balance = summarizePayments(invoice).balance;
   return { options: payOptions(s, invoice.meta.invoiceNumber, balance), boxes: Object.values(s.payments).filter(m => m.enabled).map(m => m.label) };
+}
+
+/** File name for a downloaded document: `invoice-<number>.pdf` (characters a file system dislikes become `_`). */
+export function pdfFilename(invoice: Invoice): string {
+  const n = String(invoice?.meta?.invoiceNumber || 'draft').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_');
+  return `invoice-${n}.pdf`;
 }
 
 /** "11/9/26, 6:10 PM" — the footer stamp, same style the browser prints. */

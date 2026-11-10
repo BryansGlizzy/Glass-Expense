@@ -6,7 +6,7 @@ import { AiError, chat, listModels, type ChatMessage } from '../ai-client.js';
 import { AI_RESEARCH_TIMEOUT_MS } from '../config.js';
 
 /**
- * AI relays for the browser (docs/INVOICING_PLAN.md §5.13). CSP is `connect-src 'self'`, so the browser cannot call an LLM; like OCR,
+ * AI relays for the browser (docs/DOCUMENTATION.md §13.11). CSP is `connect-src 'self'`, so the browser cannot call an LLM; like OCR,
  * it sends the provider settings from its encrypted vault with each request and the server uses them for that one call.
  *
  *   POST   /api/ai/complete     one short call (draft estimate); returns the text

@@ -1,7 +1,7 @@
 import { hasAiSection } from './aiSettings';
 
 /**
- * Writing AI research into a job description (docs/INVOICING_PLAN.md §5.13): replace OUR section if it is already there, otherwise
+ * Writing AI research into a job description (docs/DOCUMENTATION.md §13.11): replace OUR section if it is already there, otherwise
  * append; everything above it is left exactly as it was. A research section starts with a `###` line that contains "AI" and the
  * robot marker, runs until the next `###` heading (or the end), and is rendered by the job page as "AI Notes".
  */

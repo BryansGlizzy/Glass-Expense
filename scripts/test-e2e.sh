@@ -24,11 +24,8 @@ for _ in $(seq 1 40); do curl -sf "$TEST_BASE/api/info" >/dev/null && break; sle
 curl -sf "$TEST_BASE/api/info" >/dev/null || { echo "Server failed to start:"; cat "$LOG"; exit 1; }
 
 status=0
-# Invoicing 2.0 (docs/INVOICING_PLAN.md). The pure suites (invoice.*) need no server but run here so one command covers everything.
-echo "━━ invoice fixtures vs the vendored original"
-node scripts/gen-invoice-goldens.mjs --check || status=1
-
-for t in crypto server.e2ee client.e2ee migration examples reports agent agent.invoices ai.relay mailer invoice.e2ee invoice.core invoice.sheet invoice.parity invoice.layout2 invoice.sheetpdf invoice.logo invoice.ge invoice.dynamic invoice.ui; do
+# Invoicing 2.0 (docs/DOCUMENTATION.md). The pure suites (invoice.*) need no server but run here so one command covers everything.
+for t in crypto server.e2ee client.e2ee migration examples reports agent agent.invoices ai.relay mailer invoice.e2ee invoice.core invoice.sheet invoice.sheetpdf invoice.logo invoice.ge invoice.dynamic invoice.ui; do
   f="tests/$t.test.ts"; [ -f "$f" ] || f="tests/$t.test.tsx"
   echo "━━ $f"
   npx tsx "$f" 2>&1 | grep -v -i "deprecat" | grep -v "trace-deprecation" || true

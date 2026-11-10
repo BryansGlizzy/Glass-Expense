@@ -4,7 +4,7 @@ import { summarizePayments } from './salestax';
 import { statusLabel, type Invoice } from './types';
 
 /**
- * Dashboard helpers (docs/INVOICING_PLAN.md §5.9): the badge a job card shows for its document, and the "needs attention" list.
+ * Dashboard helpers (docs/DOCUMENTATION.md §13.7): the badge a job card shows for its document, and the "needs attention" list.
  * Pure. Only the owner's own documents (`can_edit`) ever produce attention items, since members cannot act on them.
  */
 

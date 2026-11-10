@@ -1,5 +1,5 @@
 /**
- * AI endpoint profiles and the research prompt (docs/INVOICING_PLAN.md §5.13). Stored in the encrypted `ai_settings` blob next to the
+ * AI endpoint profiles and the research prompt (docs/DOCUMENTATION.md §13.11). Stored in the encrypted `ai_settings` blob next to the
  * legacy single endpoint (`ai_api_key`, `ai_base_url`, `ai_model`), which keeps working as the "default" profile.
  * Three profiles match a typical setup: a fast model for drafting, a slow web-searching agent for research, and the default.
  * Pure and DOM-free (shared by the browser and, for prompt rendering, the server's research worker).
@@ -64,7 +64,7 @@ const clip = (v: unknown) => (typeof v === 'string' ? v : '').replace(/[\u0000-\
 
 /**
  * Fills the research prompt from a job. The text comes from a public web form, so each field is bounded and passed as DATA in a
- * delimited block; the model's output is informational and is never applied to rates, fees or invoices (plan T5).
+ * delimited block; the model's output is informational and is never applied to rates, fees or invoices (threat T5).
  */
 export function renderResearchPrompt(template: string, ctx: { vehicle?: string; services?: string[]; notes?: string }): string {
   const vars: Record<string, string> = { vehicle: clip(ctx.vehicle) || 'Not specified', services: (ctx.services || []).map(clip).filter(Boolean).join(', ') || 'Not specified', notes: clip(ctx.notes) || 'None' };

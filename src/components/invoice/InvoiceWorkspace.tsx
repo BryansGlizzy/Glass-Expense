@@ -81,7 +81,7 @@ export default function InvoiceWorkspace({ jobId, openId }: { jobId?: string | n
     try {
       let jobList = ctx?.j ?? jobs; let j = jobList.find(x => x.id === forJobId);
       if (!j) throw new Error('Job not found.');
-      if (!j.invoice_number && j.role === 'owner') { await jobsApi.patch(j.id, {}); jobList = await jobsApi.list(); setJobs(jobList); j = jobList.find(x => x.id === forJobId) ?? j; } // assign the job's number first (plan D6)
+      if (!j.invoice_number && j.role === 'owner') { await jobsApi.patch(j.id, {}); jobList = await jobsApi.list(); setJobs(jobList); j = jobList.find(x => x.id === forJobId) ?? j; } // assign the job's number first (decision D6)
       const it = j.intake ?? parseIntakeText(j.description);
       const built = buildNewInvoice({ job: j, intake: it, settings: ctx?.s ?? settings, docType });
       const c: Current = { recordId: null, jobId: forJobId, rev: 0, canEdit: j.role === 'owner' };
@@ -107,7 +107,7 @@ export default function InvoiceWorkspace({ jobId, openId }: { jobId?: string | n
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, openId]);
 
-  // working copy: a refresh must not lose edits; tab-scoped and wiped on logout (plan T10)
+  // working copy: a refresh must not lose edits; tab-scoped and wiped on logout (threat T10)
   useEffect(() => {
     if (!current) return; const t = window.setTimeout(() => { try { if (dirty) sessionStorage.setItem(workingKey(current), JSON.stringify({ invoice, saved })); else sessionStorage.removeItem(workingKey(current)); } catch { /* storage unavailable */ } }, 300);
     return () => window.clearTimeout(t);

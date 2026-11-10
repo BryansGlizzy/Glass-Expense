@@ -5,8 +5,8 @@ import { escapePdfTextWinAnsi, helveticaWidth, wrapText } from './text';
 import { PageStream, type Rgb } from './writer';
 
 /**
- * The downloaded / e-mailed PDF, drawn from the SAME `SheetModel` the on-screen preview and the print view show (docs/INVOICING_PLAN.md
- * §5.2). Sections, order, wording, numbers and design follow the sheet: header with logo, status badge and meta; customer and detail
+ * The downloaded / e-mailed PDF, drawn from the SAME `SheetModel` the on-screen preview and the print view show (docs/DOCUMENTATION.md
+ * docs/DOCUMENTATION.md §13.4). Sections, order, wording, numbers and design follow the sheet: header with logo, status badge and meta; customer and detail
  * boxes; labor and parts tables (the header row repeats on a new page); notes and terms beside the totals box; "How to pay" with clickable
  * links; signature lines. Text is real, selectable text with accurate Helvetica widths; long descriptions wrap.
  *

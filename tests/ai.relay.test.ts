@@ -1,5 +1,5 @@
 /**
- * AI relays and the research worker (docs/INVOICING_PLAN.md §5.13, success criterion 10) against a stub OpenAI-compatible server
+ * AI relays and the research worker (docs/DOCUMENTATION.md §13.11) against a stub OpenAI-compatible server
  * on localhost:3999 (listed in AI_ALLOWED_HOSTS by the test runner). Covers the SSRF guard, long-task polling and isolation, and the
  * rule that matters most: a job created in the GE app is NEVER auto-researched; a job posted through the API by a key with research
  * enabled is, exactly once; a key without research does nothing; research output is informational and never touches rates or invoices.
@@ -41,7 +41,7 @@ const BASE = 'http://localhost:3999';
 const profile = (model = 'stub-model', extra: any = {}) => ({ base_url: BASE, model, api_key: 'sk-test-key', timeout_s: 30, ...extra });
 
 const owner = await registerUser('ai-owner'); const intruder = await registerUser('ai-intruder');
-{ const w = new Database(`${process.env.DATA_DIR}/data.db`); w.prepare("UPDATE users SET plan='pro' WHERE username IN ('ai-owner', 'ai-intruder')").run(); w.close(); } // free-tier AI is off by design in SaaS mode (tiering is deferred, plan D14); do not depend on being the first (admin) account
+{ const w = new Database(`${process.env.DATA_DIR}/data.db`); w.prepare("UPDATE users SET plan='pro' WHERE username IN ('ai-owner', 'ai-intruder')").run(); w.close(); } // free-tier AI is off by design in SaaS mode (tiering is deferred, decision D14); do not depend on being the first (admin) account
 const post = (path: string, body: any, token = owner.token) => call('POST', path, { token, body });
 
 try {

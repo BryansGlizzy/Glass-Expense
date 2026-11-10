@@ -1,7 +1,7 @@
 # GlassExpense — Master Architecture & Technical Documentation
 
 > **Target Audience**: Software Engineers, AI/LLM Coding Agents, DevOps Engineers, and Product Architects working on or integrating with GlassExpense.  
-> **Specialized Subsystem Guide**: For in-depth mathematical tax mechanics, IRS form line-by-line mappings, safe-harbor underpayment rules, and beginner filing blueprints, see the dedicated [TAX_SYSTEM.md](TAX_SYSTEM.md). For programmatic REST contracts, see [API.md](API.md). For the security review and remediation status, see [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
+> **Specialized Subsystem Guide**: For in-depth mathematical tax mechanics, IRS form line-by-line mappings, safe-harbor underpayment rules, and beginner filing blueprints, see the dedicated [TAX_SYSTEM.md](TAX_SYSTEM.md). For programmatic REST contracts, see [API.md](API.md). For the invoicing subsystem (estimates, invoices, payments, AI), see [§13](#13-invoicing--estimates-subsystem).
 
 ---
 
@@ -53,8 +53,6 @@ glassexpense/
 ├── docs/
 │   ├── API.md                        # API reference incl. the calendar API + caller-side decryption guide
 │   ├── DOCUMENTATION.md              # This document
-│   ├── SECURITY_AUDIT.md             # Security review, findings and remediation status
-│   ├── TODO.md                       # Manual verification checklist before migrating production
 │   ├── TAX_SYSTEM.md                 # Tax calculation engine deep-dive
 │   └── examples/                     # Tested caller-decrypt clients (Node, browser, Python) + test vector
 ├── public/                           # Static assets (icons); vendor/tesseract is generated (gitignored)
@@ -498,7 +496,7 @@ Configured in [src/App.tsx](../src/App.tsx) using `react-router` v7:
 | `/dashboard` | `ProtectedRoute` | `Dashboard.tsx` | Project grid, calendar toggle, key migration |
 | `/reports` | `ProtectedRoute` | Redirects to `/dashboard?view=reports` | Opens `ReportsWorkspace.tsx` |
 | `/taxes` | `ProtectedRoute` | `TaxCenter.tsx` | Tax Hub: Schedule C, SE, 1040, 1040-ES, CPA export |
-| `/invoices` | `ProtectedRoute` | `Invoices.tsx` | Invoices & estimates workspace; deep links `?job=<id>` and `?open=<invoiceId>` |
+| `/invoices` | `ProtectedRoute` | `Invoices.tsx` | Redirects to the dashboard's **Invoices** tab (`/dashboard?view=invoices`), keeping the deep links `?job=<id>` and `?open=<invoiceId>` |
 | `/jobs/:id` | `ProtectedRoute` | `Job.tsx` | Core transaction workspace, receipt OCR, wishlists |
 | `/settings` | `ProtectedRoute` | `Settings.tsx` | Tabbed settings: Profile, Invoices, Tags, AI, Reports |
 | `/admin` | `ProtectedRoute` (admin-only data is enforced server-side) | `AdminPortal.tsx` | System stats, user management, license & tier settings |
@@ -624,8 +622,8 @@ Admin rights come **only** from the `users.is_admin` flag (no e-mail matching at
 | `invoice.e2ee` | Encrypted invoice storage: revisions and 409s, members read / owner writes, non-members 404, no plaintext in the database, ciphertext bound to its record, cascades, byte-identical round trip |
 | `ai.relay` | AI relays against a stub provider: SSRF guard and `AI_ALLOWED_HOSTS`, task polling/isolation/cancel, **UI-created jobs are never auto-researched**, API-posted jobs on research-enabled keys are researched once, injected output changes nothing |
 | `mailer` | The e-mailer: attachment bytes equal the client PDF, header injection and link allow-list, size/recipient limits, daily cap |
-| `invoice.core` · `invoice.sheet` · `invoice.parity` · `invoice.layout2` | Pure suites (no server): the original app's math, hostile-JSON normalization, the sheet view-model, **byte-for-byte PDF parity** with the vendored original (`tests/reference/automotive/`, 1,300 random invoices), and the opt-in layout 2 |
-| `invoice.ge` · `invoice.ui` | Settings, packages, intake fixtures, prefill and rate adoption, estimate→final, pay links, the sales-tax split, AI draft and research merging · server-rendered smoke tests of the React components |
+| `invoice.core` · `invoice.sheet` · `invoice.sheetpdf` · `invoice.logo` | Pure suites (no server): the totals math, hostile-JSON normalization, the sheet view-model, the sheet-drawn PDF (every sheet string present, footer, multi-page header repeat, links, logo, determinism, readable by poppler) and logo/pay-link embedding |
+| `invoice.ge` · `invoice.dynamic` · `invoice.ui` | Settings, packages, intake fixtures, prefill and rate adoption, estimate→final, pay links, the sales-tax split, AI draft and research merging · user-defined fees and detail fields, shop-from-settings, status labels · server-rendered smoke tests of the React components |
 
 ---
 
@@ -663,9 +661,172 @@ Admin rights come **only** from the `users.is_admin` flag (no e-mail matching at
 - Roadmap: re-keying on member removal, OPAQUE login, reproducible/native builds, encrypted offline queue.
 
 ### Phase 6: Invoicing 2.0
-- A native **Invoices & Estimates** workspace (a tab on the dashboard) replaces the old one-page screenshot generator: the original standalone app's features, layout and PDF output ported to React + TypeScript (PDF bytes verified identical against the original), user-defined **Service Packages**, a live paper preview, history, JSON import/export, print and PDF.
-- **Fees and detail fields are the user's own** (any trade): a document carries labelled fee lines and detail fields instead of the original app's fixed fee rows and vehicle box, and a website can fill them by variable name (`fields.<name>`, `quote.base_fee`, `quote.variables`). The shop profile is set once in Settings → Invoices.
+- A native **Invoices & Estimates** workspace (a tab on the dashboard) replaces the old one-page screenshot generator: React + TypeScript, user-defined **Service Packages**, a live paper preview, history, JSON import/export, print and PDF. It began as a port of the owner's standalone invoice app and is now its own system: nothing is tested against, or constrained by, that app.
+- **Fees and detail fields are the user's own** (any trade): a document carries labelled fee lines and detail fields instead of fixed fee rows and a vehicle box, and a website can fill them by variable name (`fields.<name>`, `quote.base_fee`, `quote.variables`). The shop profile is set once in Settings → Invoices.
 - Documents are saved as small encrypted JSON records under the job key; they are **generated as Estimates** and become Final Invoices only through a recorded confirmation (a person, or an agent key with the `finalize` permission).
 - The **website is the source of truth for rates** (a posted `quote` becomes the estimate's rate and fee); the job's intake is parsed and normalized, and estimates are drafted automatically for API-posted jobs. **Payments** (PayPal / Venmo / Cash App / Zelle links, "How to pay" on the PDF) are recorded by hand and become income entries with an optional per-user **sales-tax split**.
 - Optional **AI**: draft an estimate's hours (never prices) and an **AI Research** button; the website's research step moved into GlassExpense, running only for jobs posted by research-enabled API keys. An internal **e-mailer** sends the PDF.
-- See [INVOICING_PLAN.md](INVOICING_PLAN.md) for the design and decisions, and [API.md §3A](API.md#3a-agent-api-for-automations-and-ai-agents-opt-in-keys) for the agent contracts.
+- See [§13](#13-invoicing--estimates-subsystem) for the design and decisions, [API.md §3B](API.md#3b-variables-plug-any-website-or-app-into-glassexpense) for the website variable contract, and [API.md §3A](API.md#3a-agent-api-for-automations-and-ai-agents-opt-in-keys) for the agent contracts.
+
+---
+
+## 13. Invoicing & Estimates subsystem
+
+This is the permanent design record for invoicing (it replaces the former planning document). Identifiers `D#` (decision), `C#` (constraint) and `T#` (threat) are kept because they appear in code comments. Contracts for websites, apps and agents are in [API.md §3A–§3B](API.md#3a-agent-api-for-automations-and-ai-agents-opt-in-keys); the tax side is in [TAX_SYSTEM.md](TAX_SYSTEM.md).
+
+### 13.1 What it is
+
+A native **Invoices & Estimates** workspace (the **Invoices** tab on the dashboard) for any trade:
+
+- **Estimate first.** A document is always generated as an *Estimate* and becomes a *Final Invoice* only through a recorded confirmation (§13.8).
+- **User-defined everything**: shop profile, fees, detail fields (the information box), service packages, terms, payment methods, e-mail templates, AI endpoints. Nothing is hard-coded to one industry.
+- **Job link**: customer, detail fields, number, dates and **website-quoted rates** arrive pre-filled from the job's `intake` (§13.7).
+- **One design everywhere**: the live preview, the print dialog and the downloaded / e-mailed PDF are all drawn from the same *sheet model* (§13.4).
+- **Get paid**: PayPal / Venmo / Cash App / Zelle / cash / check instructions with clickable links, "Record payment" creating income entries with an optional per-user sales-tax split (§13.9), and an internal e-mailer (§13.10).
+- **AI (optional)**: draft an estimate's hours, an **AI Research** button, and automatic research only for API-posted jobs (§13.11).
+- **Agents**: an API key with the *Invoices* permission can read, draft and (with `finalize`) confirm estimates (§13.12).
+- End-to-end encryption is preserved: documents are sealed under the **job key** (§13.6).
+
+### 13.2 Decisions that stand
+
+| ID | Decision |
+|---|---|
+| D1 | Invoices are readable by **job members** (encrypted under the job key); the **server enforces owner-only writes**. |
+| D3 | **The website is the source of truth for rates.** A posted `quote` is adopted for the estimate; every value stays editable per document, with a "from website" marker and *Reset to my defaults*. |
+| D4 | No built-in business defaults: values come from the owner's Settings and from the website as posted. |
+| D5 | Documents are **generated as Estimates**; Final only through a confirmation. |
+| D6 | The invoice uses **the job's number**; for jobs posted by a key that cannot allocate numbers, the owner's app assigns it the first time it opens. Extra documents on a job get `-2`, `-3` (D16). Every document belongs to a job (D17). |
+| D8 | **Automatic research only for API-posted jobs** on keys that opted in; the button works on any job. |
+| D9 | **Sales tax is optional and per user**; the rule is driven by the invoice itself (§13.9). |
+| D11 | Estimate/invoice **terms are the owner's text** (Settings); GlassExpense only stores them. Review by the owner or counsel. |
+| D12 | An agent with the `finalize` permission may confirm an estimate; the in-app AI review pass is advisory. |
+| D13 | **Auto-draft an Estimate on app open** for API-posted jobs (on by default, can be turned off). |
+| D14 | **Tier gating is deferred**: no tier-based limits for invoicing, e-mail or AI (one flat per-user e-mail cap). |
+| D15 | **Payment links + manual "Record payment"** first; **automatic PayPal tracking is deferred** (§13.14). |
+| D18 | Letter / USD / en-US (A4 later). |
+| D19 | The research worker and the agent invoice endpoints reuse the **agent permission model** through `server/agent-core.ts`, with no internal HTTP call (the server can only touch a job whose key is in the API key's sealed bundle). |
+
+Constraints that shaped it: **C1** the server is blind (invoices are encrypted in the browser; e-mail, AI relays and agent invoice access are explicit opt-ins) · **C2** CSP is `connect-src 'self'`, so AI goes through a server relay · **C5** personal blobs are allow-listed (`BLOB_NAMES`, 900 KB, last write wins) · **C6** a job field must be added to every copy of `JobBlob` (`src/e2ee/store.ts`, `handlers/jobs.ts`, `server/routes/agent.ts`, `migration.ts`) or the next browser edit drops it · **C7** the agent description-append rewrites the whole job blob, so invoices stay out of `JobBlob` · **C8** the server may import shared pure TS from `src/` (intake parser, `normalizeInvoice`) · **C9** Android's OTA ships only the web bundle (native Share/Filesystem plugins need an APK) · **C10** the offline queue is expense-only, so saving an invoice needs a connection · **C14** no DOM test framework: logic lives in pure modules (including the sheet model) and UI gets server-rendered smoke tests · **C17** the server cannot read a user's Settings, so anything an agent creates is *sparse* and the owner's browser finishes it on next open.
+
+### 13.3 Code layout
+
+```
+src/invoice/                  pure TypeScript, no DOM (tested with tsx; some modules shared with the server)
+  types · model · totals · vin · format · labels · normalize     document model, math, hostile-JSON normalization (shared with server)
+  sheet.ts                    buildSheetModel(): the exact strings/rows of the paper sheet (single source for preview, print and PDF)
+  pdf/{text,writer,assemble,sheetPdf}.ts   PDF-1.4 writer (Helvetica metrics, WinAnsi, links, JPEG logo) + the sheet-drawn document
+  render.ts                   renderSheet / renderPdf / e-mail fill; footerStamp
+  settings · packages · prefill · intake · paylinks · salestax · review · pending · attention · ge · maintain
+  aiSettings · aiDraft · research · logo · logoUpload
+src/components/invoice/       workspace, editor, InvoiceSheet + sheetCss, modals, panels, JobInvoicePanel
+src/components/settings/      InvoiceSettings, AiProfilesSettings
+src/e2ee/handlers/{invoices,invoicing}.ts   encrypted invoice CRUD · settings/packages blobs
+server/agent-core.ts · research.ts · ai-client.ts · routes/{ai,invoices-mail}.ts
+```
+
+### 13.4 The document, the sheet and the PDF
+
+- **Document** = the invoice JSON (`meta`, `shop`, `customer`, `vehicle`, `laborItems`, `partItems`, `settings`, `notes`, optional `fees`, `details`, and GlassExpense's own `ge` block: id, review, payments, events, pending, prefill snapshot, AI markers). It is also the import/export format. Everything read from the server, a file, another user or an agent passes through `normalizeInvoice` (numbers coerced and clamped, enums allow-listed, strings and arrays capped, unknown keys dropped).
+- **Dynamic mode.** A document with a `fees` array uses the owner's **fee lines** (flat / percent of labor / percent of subtotal, optional cap, optional taxable) and a `details` box (title + labelled fields) instead of the four fixed fee fields and the vehicle box. Documents **without** them (older files) keep the fixed fields and are still read and printed. In dynamic mode zero discount/tax rows are hidden and an empty detail box disappears (the customer box takes the full width).
+- **Sheet model.** `buildSheetModel()` returns every string, row and number the sheet shows: shop, status badge, meta, customer, detail box, labor and parts tables, notes, totals, signature. `InvoiceSheet` only renders it (React text children, no `innerHTML`), and `sheetPdf.ts` draws the PDF from the **same** model, so preview, print and download match. Labels are overridable per user (`labels.ts`); defaults are neutral.
+- **PDF.** Deterministic: no clock or randomness inside the writer (the caller supplies the footer time). Real, selectable text with accurate Helvetica widths; long descriptions wrap; table headers repeat on new pages; clickable pay links; the logo is embedded as the original JPEG bytes (`/DCTDecode`). Every page ends with a footer: generated date/time, "GlassExpense - Your Transparent Expense Tracker", "Page n of N". No URL and no top header line.
+- **Print.** `#printable-invoice-area` with `@page invoice { size: letter; margin: 0 }` (so the browser prints none of its own URL/title/date), repeating spacer rows for page margins and a fixed footer drawn by the sheet (date/time taken when the dialog opens; browsers cannot print page numbers there). Print is hidden in the Android shell.
+- **Status wording.** The stored status stays `Draft | Estimate | Sent | Approved | Paid | Overdue`; `statusLabel()` shows a draft *invoice* as **"Final"** (a draft estimate stays "Draft"). "Overdue" is only *suggested* when the due date has passed; it is never changed silently.
+- **Optional rounding** (a per-user default pinned per document as `meta.layout: 2`): each line rounded to the cent and hours shown with two decimals.
+
+### 13.5 Settings → Invoices and Service Packages
+
+Cards of the Settings tab (`InvoiceSettings.tsx`, plus `AiProfilesSettings.tsx` under Settings → AI): **Shop profile** (name, license, phone, e-mail, address, logo, invoice-number prefix, footer notes — the only place shop information is edited; a document never edits it), **Hourly rate** (*Follow website rates* keeps the latest posted quote as the fallback), **Fees** (any number; flat or percent; cap; taxable; *add to new documents*; an optional **website variable** such as `base_fee`), **Detail fields** (title + fields with label, variable name, type, default; one-click *automotive set*), **Sales tax** (default 0 = none; tax-labor toggle; income recorded net or gross of tax), **Defaults for new documents**, **Terms & documents** (customer notes, estimate terms, invoice terms, signature text), **Payments**, **E-mail**, **Automation** (auto-draft, require verification), and the **Service Packages** builder.
+
+Storage: `invoice_template` blob key `invoicing` (the legacy `/api/invoice-templates` shape is derived from it for Reports), `invoice_packages` blob (≤ 100 packages, ≤ 30 lines each), `ai_settings` (profiles, research prompt/heading, optional notes sink). Older settings migrate once (the former fixed fees become ordinary fee lines). First-run values (an owner's terms, fee names, payment methods) can be loaded from an importable settings file; nothing business-specific is built into the app.
+
+A **Service Package** is a reusable set of labor lines, part lines, fees (it *sets* a fee by label, never adds twice) and a customer note. Applying appends exactly what it defines (applying twice doubles); a blank labor rate resolves to the hourly rate at apply time so the saved document is self-contained. Packages can match website service names (*Suggested* highlighting; nothing is added without a click), be created from a document's lines, imported/exported as JSON, or created empty for each service name the website sends. No prices or hours are invented.
+
+### 13.6 Storage, access and numbering
+
+- Table `invoices (id, job_id, user_id, enc, rev, created_at, updated_at)`: one small encrypted record per document under the **job key**, AAD `invoice|<jobId>|<id>`. PDFs and HTML are never stored; they are regenerated from the JSON.
+- **Members read, only the owner writes** (server-enforced with `requireJobOwner`; pending invitees see nothing). Members therefore see prices, payments and customer details of documents on jobs they joined, as they already see the job's client fields and expenses (D1/T2).
+- Routes (`server/routes/data.ts`): `GET /api/v2/invoices`, `GET|POST /api/v2/jobs/:jobId/invoices`, `PUT /api/v2/invoices/:id` (`expected_rev` → `409`), `DELETE`. Ciphertext cap ≈ 100 KB. Job deletion and admin user deletion delete `invoices` explicitly (no FK cascade).
+- The client writes through with `rev`, shows "Saved" only after the server acknowledges, and keeps a working copy in `sessionStorage`, wiped on logout.
+- Records are keyed by `ge.id`, not by number. Estimate ids are deterministic (`deterministicUuid('estimate|<jobId>')`) so two devices cannot create two.
+- Metadata the server learns: invoice ids, job id, creator, revision, timestamps, count per job. Not status, totals or customer (except for agent keys granted the invoice permission).
+
+### 13.7 Job integration, intake and variables
+
+`prefill.ts` is a pure function `(job, intake, settings) → { invoice, provenance, warnings }`; the first non-empty source wins.
+
+| Document field | Sources, in order |
+|---|---|
+| customer name / phone / e-mail | `intake.contact` → job client fields |
+| customer address | job address → `intake.location` |
+| detail field `<key>` | `intake.fields[key]` → vehicle value for `year/make/model/engine/vin` → a `Label: value` line in the text → the field's default |
+| labor rate | package rate → `intake.quote.hourly_rate` → `job.job_rate` → Settings |
+| fee linked to variable `v` | this job's `quote.v` (`base_fee` is `quote.base_fee`) → latest quote seen (if *follow website*) → the fee's own amount |
+| tax rate | `quote.variables.tax_rate` → Settings tax |
+| number | `job.invoice_number` |
+| dates | today; due = today + estimate-validity or due days |
+| customer notes | `job.invoice_notes` → intake symptoms → Settings default |
+| terms | Settings terms for the document type (+ the customer-supplied-parts sentence when `parts_policy = own-parts`) |
+
+- **Intake** (`src/invoice/intake.ts`, shared with the server): what a website posts (structured fields, or the older text description parsed with a `Label: value` grammar; text before the first `###` only) is validated, normalized (phone → E.164, e-mail lower-cased, names/streets re-cased only for all-upper/all-lower input, vehicle make canonicalized) and stored as the job's `intake`; GlassExpense **writes the description itself** in one uniform block, so jobs look the same whatever their source. Warnings (`address_incomplete`, `phone_missing`, `service_unscoped`, `customer_parts`, …) are shown above the editor. The variable contract for senders is in [API.md §3B](API.md#3b-variables-plug-any-website-or-app-into-glassexpense).
+- **Refresh from job** re-runs prefill and changes only fields the user has not edited since the last prefill (compared with a stored snapshot).
+- **Billable expenses**: "Add parts from this job's expenses" with a markup %, each expense added once.
+- **Job page / dashboard**: an invoice panel and Intake card on the job, a status badge per job card, and a "Needs your attention" strip (overdue invoices, invoices an agent finalized that you have not sent, auto-drafted estimates you have not sent).
+- `JobBlob` carries `client_phone` and `intake` in every copy (C6), covered by a regression test that a browser edit preserves them.
+
+### 13.8 Lifecycle: Estimate → Final
+
+```
+job / API post / agent ──generate──► ESTIMATE (docType estimate)
+                                        │  customer authorizes (Approved, optional)
+                                        ▼
+             Confirm: a person (Review & Confirm dialog) or an agent key with invoices:finalize
+                                        ▼
+                  FINAL INVOICE (docType invoice, shown "Final") ─► Sent ─► Paid
+```
+
+Generation always yields an Estimate (create, AI draft, on-open auto-draft, agent). Confirming records `ge.review = { by: 'human' | 'agent', keyId?, at, note }` and an event, sets `docType: invoice`, a new issue date and keeps the number. Terms and signature text swap to the invoice versions **only if the owner had not edited them**, done by the owner's browser (immediately for a person, on next open for an agent, via `ge.pending`, C17). A finalized invoice is locked for agents; the owner can reopen it (logged in `ge.events`). `meta.docType` selects the print title, terms, signature text and the due-date label ("Valid Until" for estimates).
+
+### 13.9 Payments and sales tax
+
+- **Methods** (`paylinks.ts`, pure builders; one entry per method): `paypal`, `venmo`, `cashapp`, `zelle`, `cash`, `check`, `other`, each `{ enabled, label, handle, note }`. PayPal accepts a PayPal.Me name (personal accounts) **or** a PayPal payment-link / hosted-button URL `https://www.paypal.com/ncp/payment/<ID>` (business accounts; one fixed link, so the amount due is printed beside it); Venmo builds a payment link with amount and note; Cash App prints the cashtag link with the amount beside it; Zelle has no link format (the e-mail/phone and a memo are printed). Links are allow-listed (https, exact hosts, no credentials or ports). The *How to pay* block lists enabled methods with clickable links and "Payment received" boxes mirror them. Amount = grand total or the balance after partial payments. Provider URL formats should be re-verified occasionally.
+- **Record payment** appends to `ge.payments[]`, sets Paid or leaves it partial, and creates an **income entry** on the job with a deterministic id (`deterministicUuid('invoice-payment|<invoiceId>|<paymentId>')`), so two devices cannot double-post. Invoice totals alone never count as income.
+- **Sales tax is per user and invoice-driven.** No tax on the invoice → the income entry equals the payment. Tax on the invoice → `taxPortion = round(payment × taxAmount ÷ grandTotal, 2)` and the income entry is `payment − taxPortion` (default *exclude*; Settings → Tax can switch to *include*); each payment records its portion (e.g. $100 + 6 % = $106: paying $106 → income $100, tax $6; paying $53 → income $50, tax $3). Collected tax is summarized in the history drawer (`salesTaxCollected`). This is bookkeeping logic, not tax advice.
+
+### 13.10 Internal e-mailer
+
+Opt-in (Settings → E-mail). The browser builds the PDF and `POST /api/invoices/send` (session-only; agents cannot send) passes it through the server in memory to the configured SMTP: attachment bytes equal a download. Limits: ≤ 3 recipients, PDF ≤ 3 MB with PDF magic bytes, CR/LF rejected in headers, pay-link URLs allow-listed (`paypal.com` payment links, `paypal.me`, `venmo.com`, `cash.app`), HTML built server-side from the escaped plain text, `From` = the verified SMTP sender with the shop name, `Reply-To` = the shop, a flat per-user daily cap (`INVOICE_EMAIL_DAILY_LIMIT`, default 30), content never logged or stored. Without SMTP the dialog offers `mailto:`. `EMAIL_CAPTURE_DIR` captures mail in tests.
+
+### 13.11 AI: drafts and research
+
+- **Endpoint profiles** in the encrypted `ai_settings`: `default`, `drafting`, `research` (`{ base_url, model, api_key?, timeout_s }`) with **Test connection**. All server-side AI calls go through one SSRF-guarded client (`server/ai-client.ts`: https or an `AI_ALLOWED_HOSTS` host, no redirects, per-call timeouts; long calls use `http(s).request` because Node's default headers timeout is 300 s). `AI_ALLOWED_HOSTS` allows named LAN hosts without the blanket `ALLOW_PRIVATE_AI_URLS`. OCR/W-2 OCR still use their own call.
+- **Draft estimate**: a redacted brief (services, vehicle, parts policy, symptoms, package names and hours, the owner's median billed hours; **never** name, phone, e-mail or street address) → strict JSON validated in code (hours 0–40, ≤ 12 labor lines, ≤ 30 part lines, caps, unknown keys dropped). **The model never produces prices or totals**; rates come from the variables. Unclear work yields low confidence and questions. The result is marked (`ge.ai.lineIds`), shown with a banner and a **Verify** button (optionally required before sending), and is always an Estimate. Auto-draft on app open runs in the browser because the profile, packages and rates live in encrypted blobs.
+- **Research**: the **button** (any job) runs a task through `/api/ai/tasks` (memory only, TTL 30 min, ≤ 2 concurrent per user, cancellable) and the browser **replaces its own section or appends**, never touching the text above. **Automatic research** runs *inside the agent create route*, only for jobs a key with *Run AI research on jobs this key posts* creates; the endpoint is sealed in that key's bundle and the worker (`server/research.ts`) uses `agent-core.ts`, so it can only append to covered jobs. It skips jobs already containing a `### 🤖 AI` section (rechecked at write time) and sends only vehicle, services and symptoms. Output is informational: **never applied to an invoice automatically**.
+
+### 13.12 Agents and invoices
+
+Keys have an invoice permission `none < read < draft < finalize` (`draft`/`finalize` need write access; only jobs the key covers and the key's account owns). Endpoints, limits and behavior are in [API.md §3A.2](API.md#3a-agent-api-for-automations-and-ai-agents-opt-in-keys): create an Estimate (forced `docType: estimate`, idempotent), edit an unconfirmed estimate, confirm (`finalize`). Agents can never edit a final invoice, send e-mail, record payments or delete. Every write passes through the shared normalizer and is logged in `ge.events` with the key id. Agent-made documents are sparse; `pending.ts` lets the owner's browser fill blank shop/terms fields, upgrade the document to the owner's dynamic format without changing its total, and show a "Finalized by agent" notice.
+
+### 13.13 Security and privacy summary
+
+| ID | Threat | Mitigation |
+|---|---|---|
+| T1 | Foreign invoice JSON (joined jobs, imports, agents) | No `innerHTML` anywhere; `normalizeInvoice` coerces and caps (also on the server for agent writes) |
+| T2 | Members see more (prices, payments, customer data) | Accepted (D1); owner-only writes are server-enforced; owner-only UI is convenience |
+| T3 | Mailer abuse / spam relay | Opt-in, per-user cap, ≤ 3 recipients, header checks, escaped HTML, link allow-list, no logging, no agent access |
+| T4 | SSRF via LLM endpoints | `AI_ALLOWED_HOSTS` instead of blanket private access; no redirects; timeouts |
+| T5 | Prompt injection (public-form text) | Delimited untrusted data, strict JSON validation and clamps, no model-made prices, research never auto-applied |
+| T6 | PII to the LLM | Briefs exclude name, phone, e-mail, street address; a local endpoint keeps data on the LAN |
+| T7 | Agent key carries an LLM token | Sealed under `SERVER_WRAP_KEY`, opt-in per key, deleted with the key, append-only through `agent-core` |
+| T10 | Plaintext remnants | `sessionStorage` working copy cleared on logout; PDFs never stored; mail content never logged |
+| T11 | Wrong legal wording on documents | Terms are the owner's data (D11), nothing built in |
+| T13 | Rates tampered via the API | `quote` bounded (0…1,000,000), shown with a "from website" marker, editable per document |
+| T14 | A compromised agent finalizes bogus invoices | `finalize` is separate and opt-in; estimates only; no sending/payments/deletes; logged with the key id; owner can reopen; keys revocable |
+| T15 | Agent invoice permission widens what a key can read | Stated in the key dialog; covered, owned jobs only; same sealed-bundle trust as job keys |
+
+### 13.14 Known limits, deferred work and manual checks
+
+- **Deferred**: automatic PayPal tracking (would need PayPal API credentials, a webhook and a minimal plaintext `payment_events` table; decide after the links have been used); tier-based limits (D14); QR codes on the PDF; native Android Share/Filesystem plugins (APK release; whether a plain PDF download works inside the Android shell is unverified; print is hidden there); live socket updates for invoices (the workspace refetches after its own actions); a "Sales tax collected" section in Reports (currently the history drawer).
+- **Manual checks** (no browser available to automated tests): print dialog and page breaks, the editor at 360 px, a screen-reader pass, Android download behavior, pay links opening with a real account, and a real LLM run (only a stub provider is tested).
+- **Compatibility**: documents saved before dynamic mode are still read and printed; the JSON import/export format is the document itself (plus the optional `ge` block); `/api/invoice-templates` keeps its v1 shape; older exported JSON files (without `fees` / `details`) still import and print.
+- **Risk to remember**: `Job.tsx` and `Settings.tsx` are very large; new invoicing UI lives in its own components and touches them minimally.

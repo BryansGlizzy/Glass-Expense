@@ -1,5 +1,5 @@
 /**
- * The downloaded / e-mailed PDF is drawn from the same SheetModel as the preview and the print view (docs/INVOICING_PLAN.md §5.2).
+ * The downloaded / e-mailed PDF is drawn from the same SheetModel as the preview and the print view (docs/DOCUMENTATION.md §13.4).
  * Pure: needs no server.   Run:  npx tsx tests/invoice.sheetpdf.test.ts
  */
 import assert from 'node:assert/strict';

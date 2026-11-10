@@ -5,14 +5,12 @@ import { fill, resolveSheetLabels, type DeepPartial, type SheetLabels } from './
 import { statusLabel, type DocType, type Totals } from './types';
 
 /**
- * The preview sheet as data: exactly the strings, in exactly the order, that the original app's live preview shows
- * (automotive-pdf app.js `updateTotalsAndPreview`, lines ~733-846, and the sheet template in `getAppTemplate`).
+ * The paper sheet as data: every string and number, in order, that the preview, the print view and the PDF show.
  *
- * `InvoiceSheet.tsx` (P2) only renders this model. Keeping the text logic here makes it testable with plain `tsx`
- * scripts (GE has no component-test framework, plan C14) and makes preview-vs-original drift visible in a diff.
+ * `InvoiceSheet.tsx` only renders this model and `pdf/sheetPdf.ts` draws the PDF from it, so the three always agree. Keeping the text
+ * logic here makes it testable with plain `tsx` scripts (GE has no component-test framework, docs/DOCUMENTATION.md §13.2 C14).
  *
- * Not carried over: upstream's placeholder legal fallback ("Standard shop warranty and liability disclaimer.") and its
- * hard-coded authorization sentence: both are label data now, empty by default (plan D4).
+ * There is no built-in legal wording: the terms fallback and the authorization sentence are label data, empty by default (decision D4).
  */
 
 export interface SheetRow { description: string; technician: string; hours: string; rate: string; amount: string }
@@ -97,11 +95,11 @@ export function buildSheetModel(invoice: any, totalsIn?: Totals | null, labelPat
     labor: {
       heading: L.laborHeading,
       columns: [L.laborColumns.description, L.laborColumns.technician, L.laborColumns.hours, L.laborColumns.rate, L.laborColumns.amount],
-      // The sheet shows hours with one decimal (the PDF prints two): upstream quirk Q7, kept by default.
+      // Hours show with one decimal by default; the optional rounding mode (meta.layout 2) shows two.
       rows: arr(inv.laborItems).map(item => ({
         description: item?.description || L.laborFallback,
         technician: item?.technician || L.blank,
-        hours: asNumber(item?.hours).toFixed(meta.layout === 2 ? 2 : 1), // layout 2 unifies this with the PDF's two decimals (H7)
+        hours: asNumber(item?.hours).toFixed(meta.layout === 2 ? 2 : 1),
         rate: money(item?.rate || 0),
         amount: money(asNumber(item?.hours) * asNumber(item?.rate)),
       })),
@@ -137,7 +135,7 @@ export function buildSheetModel(invoice: any, totalsIn?: Totals | null, labelPat
           ...(asNumber(settings.taxRate) > 0 || totals.taxAmount > 0 ? [{ key: 'tax', label: fill(L.totals.tax, { rate: `${settings.taxRate ?? 0}%` }), value: money(totals.taxAmount) }] : []),
           { key: 'grand', label: L.totals.grandTotal, value: money(totals.grandTotal), grand: true },
         ] as SheetTotalsLine[])
-      // Every fee row is always listed, including $0.00 (upstream behavior, Q5), unless the opt-in layout 2 + hideZeroRows is on (H5).
+      // Every fee row is listed, including $0.00, unless the optional rounding mode (meta.layout 2) with hideZeroRows is on.
       : ([
           { key: 'labor', label: L.totals.laborSubtotal, value: money(totals.laborSubtotal) },
           { key: 'parts', label: L.totals.partsSubtotal, value: money(totals.partsSubtotal) },

@@ -7,7 +7,7 @@ import { hasAiSection, renderHeading, renderResearchPrompt, DEFAULT_RESEARCH_HEA
 import { parseIntakeText } from '../src/invoice/intake.ts';
 
 /**
- * In-process research worker (docs/INVOICING_PLAN.md §5.13, decisions D8/D19). It replaces the website's own Hermes call.
+ * In-process research worker (docs/DOCUMENTATION.md §13.11, decisions D8/D19). It replaces the website's own Hermes call.
  *
  * It runs ONLY for jobs created through the agent API by a key that was explicitly opted in to research (`scope.research`, with the
  * endpoint sealed in the key's bundle). Jobs created in the GE app, imported, or by any other key are never researched: the trigger

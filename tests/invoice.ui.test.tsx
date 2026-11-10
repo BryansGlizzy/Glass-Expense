@@ -1,5 +1,5 @@
 /**
- * UI smoke tests (docs/INVOICING_PLAN.md C14: GE has no DOM test framework). Components are rendered to static HTML on the server, which
+ * UI smoke tests (docs/DOCUMENTATION.md C14: GE has no DOM test framework). Components are rendered to static HTML on the server, which
  * is enough to prove they render complete data, that hostile content comes out as inert text (React escaping, no raw HTML anywhere),
  * that read-only mode disables every control, and that the sheet and editor mirror the same invoice.
  * Pure: needs no server.   Run:  npx tsx tests/invoice.ui.test.tsx

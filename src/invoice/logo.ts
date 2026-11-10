@@ -1,5 +1,5 @@
 /**
- * The company logo (docs/INVOICING_PLAN.md H4). It is stored as a small baseline JPEG data URL in the encrypted invoicing settings
+ * The company logo (docs/DOCUMENTATION.md §13.4). It is stored as a small baseline JPEG data URL in the encrypted invoicing settings
  * (the browser converts whatever the user uploads, see `logoUpload.ts`), drawn on the sheet as an image and embedded in the PDF as a
  * /DCTDecode image (the JPEG bytes go into the PDF unchanged, so there is no re-compression and no image library). A remote logo URL
  * cannot be used: the app's CSP forbids fetching other origins, and most hosts do not allow cross-origin reads anyway.

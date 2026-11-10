@@ -8,7 +8,7 @@ Offline-first PWA and Android app for contractors and small businesses: job-base
 | :--- | :--- |
 | Frontend | React 19, Vite, Tailwind v4, Capacitor (Android), Workbox PWA |
 | Backend | Express, Socket.IO, SQLite (`better-sqlite3`) |
-| Docs | [Architecture](docs/DOCUMENTATION.md) · [API & calendar integration](docs/API.md) · [Tax engine](docs/TAX_SYSTEM.md) · [Invoicing 2.0 plan](docs/INVOICING_PLAN.md) · [Security review](docs/SECURITY_AUDIT.md) · [Pre-production checklist](docs/TODO.md) |
+| Docs | [Architecture](docs/DOCUMENTATION.md) · [API & calendar integration](docs/API.md) · [Tax engine](docs/TAX_SYSTEM.md) · [Invoicing](docs/DOCUMENTATION.md#13-invoicing--estimates-subsystem) |
 
 ## Quick start
 
@@ -111,4 +111,4 @@ Accounts created before end-to-end encryption are upgraded automatically the nex
 
 ## Security
 
-Report vulnerabilities privately to the maintainer. The latest review, remediation status and remaining work are in [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md).
+Report vulnerabilities privately to the maintainer. The threat model and known limits are in [docs/DOCUMENTATION.md §5.4](docs/DOCUMENTATION.md#54-threat-model-and-known-limits).

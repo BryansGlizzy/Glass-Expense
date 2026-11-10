@@ -1,5 +1,5 @@
 /**
- * Agent API, Invoicing 2.0 (docs/INVOICING_PLAN.md §5.14, §5.16, success criteria 12): structured job intake with a website `quote`
+ * Agent API, Invoicing 2.0 (docs/DOCUMENTATION.md §13.7, §13.12): structured job intake with a website `quote`
  * and idempotent `external_ref`, a browser edit that must not drop the new job fields (C6), and the invoice permission levels
  * (none < read < draft < finalize): agents can draft estimates and, with `finalize`, confirm them; never edit a final invoice,
  * send e-mail, record payments or delete.

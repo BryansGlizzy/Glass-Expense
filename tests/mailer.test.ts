@@ -1,12 +1,13 @@
 /**
- * Internal invoice e-mailer (docs/INVOICING_PLAN.md §5.12, success criterion 13). The test server runs without SMTP and with
+ * Internal invoice e-mailer (docs/DOCUMENTATION.md §13.10). The test server runs without SMTP and with
  * EMAIL_CAPTURE_DIR, so messages and the EXACT attachment bytes land on disk: the attachment must equal the client's PDF.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { call, registerUser } from './helpers.ts';
-import { generatePdfBytes } from '../src/invoice/pdf/generate.ts';
+import { generateSheetPdf } from '../src/invoice/pdf/sheetPdf.ts';
+import { buildSheetModel } from '../src/invoice/sheet.ts';
 import { createEmptyInvoice, addLaborItem } from '../src/invoice/model.ts';
 import { calculateTotals } from '../src/invoice/totals.ts';
 
@@ -16,7 +17,7 @@ const t = async (name: string, fn: () => Promise<void>) => { try { await fn(); p
 
 const user = await registerUser('mailuser');
 const inv = addLaborItem(createEmptyInvoice({ meta: { invoiceNumber: 'T-A00001' }, shop: { name: 'Example Auto' } }), { id: 'l', description: 'Work', hours: 1, rate: 55 });
-const pdf = generatePdfBytes(inv, calculateTotals(inv));
+const pdf = generateSheetPdf(buildSheetModel(inv, calculateTotals(inv)), { generatedAt: 'x' });
 const good = () => ({ to: 'customer@example.com', subject: 'Invoice T-A00001 from Example Auto', text: 'Hi Pat,\nYour invoice is attached.\n<b>total</b> $55.00', pdf_base64: Buffer.from(pdf).toString('base64'), filename: 'invoice-T-A00001.pdf', shop_name: 'Example Auto', reply_to: 'shop@example.com' });
 const send = (body: any, token = user.token) => call('POST', '/api/invoices/send', { token, body });
 const captured = () => (fs.existsSync(DIR) ? fs.readdirSync(DIR) : []);

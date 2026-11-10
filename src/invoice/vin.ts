@@ -1,6 +1,6 @@
 import type { VinCheck } from './types';
 
-/** 17 characters, letters and digits, excluding I, O and Q (upstream `validateVin`, messages unchanged). */
+/** 17 characters, letters and digits, excluding I, O and Q . */
 export function validateVin(vin: unknown): VinCheck {
   const normalized = String(vin ?? '').trim().toUpperCase();
 

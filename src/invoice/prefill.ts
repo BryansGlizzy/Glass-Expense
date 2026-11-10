@@ -4,12 +4,12 @@ import { effectiveRates, quoteVariable, type InvoicingSettings } from './setting
 import type { DetailField, DocType, FeeLine, Invoice } from './types';
 
 /**
- * Builds a new document from a job, its intake and the user's settings (docs/INVOICING_PLAN.md §5.9). Pure.
+ * Builds a new document from a job, its intake and the user's settings (docs/DOCUMENTATION.md §13.7). Pure.
  *
  * The first non-empty source wins. The website is the source of truth for rates (D3): a posted `quote` beats Settings, and every
  * resulting value stays editable per invoice. Fees come from the user's own fee list (those marked "add to every new document"); a fee
  * whose `quoteKey` matches a variable the website posted takes that amount. Detail fields come from the user's own field list, each
- * filled from the intake by its `key`. Nothing here comes from the upstream app (D4). The result records WHERE values came from
+ * filled from the intake by its `key`. Nothing here is built in (D4). The result records WHERE values came from
  * (`provenance`) and a snapshot of what was filled, so "Refresh from job" can update only fields the user has not edited.
  */
 

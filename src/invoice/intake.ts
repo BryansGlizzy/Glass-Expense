@@ -1,5 +1,5 @@
 /**
- * Intake standard (docs/INVOICING_PLAN.md §5.14): turns what a website form sends (structured fields, or the older text
+ * Intake standard (docs/DOCUMENTATION.md §13.7): turns what a website form sends (structured fields, or the older text
  * description) into one consistent `JobIntake`, and writes a canonical description block from it. Pure, DOM-free and shared
  * with the server (agent create route). Hostile text is only ever stored as text: it can never change parsing rules, rates or fees.
  */
@@ -96,7 +96,7 @@ export function parseVehicleLine(raw: string): NonNullable<JobIntake['vehicle']>
   return out;
 }
 
-// ── Text grammar (docs/INVOICING_PLAN.md Appendix C) ────────────────────────
+// ── Text grammar (docs/DOCUMENTATION.md §13.7) ────────────────────────
 const ALIASES: Record<string, string> = {
   customer: 'name', name: 'name', 'customer name': 'name', email: 'email', 'e-mail': 'email', phone: 'phone', tel: 'phone', mobile: 'phone', cell: 'phone',
   address: 'address', location: 'address', vehicle: 'vehicle', services: 'services', service: 'services', inspection: 'inspection',

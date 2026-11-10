@@ -1,5 +1,5 @@
 /**
- * Encrypted invoice storage (docs/INVOICING_PLAN.md §5.8, success criteria 4 and 6): create/update/delete with optimistic
+ * Encrypted invoice storage (docs/DOCUMENTATION.md §13.6): create/update/delete with optimistic
  * concurrency, members read but cannot write (enforced by the server), non-members see nothing, the database holds no
  * plaintext, ciphertext is bound to its record, deletes cascade, and a saved invoice reloads to identical PDF bytes.
  * Runs the real client layer against the throwaway server (see scripts/test-e2e.sh).
@@ -15,7 +15,8 @@ import { setSession, getSession } from '../src/e2ee/session.ts';
 import { approveMember, listMembersNeedingKey } from '../src/e2ee/members.ts';
 import * as C from '../src/e2ee/crypto.ts';
 import { createEmptyInvoice, addLaborItem, addPartItem } from '../src/invoice/model.ts';
-import { generatePdfBytes } from '../src/invoice/pdf/generate.ts';
+import { generateSheetPdf } from '../src/invoice/pdf/sheetPdf.ts';
+import { buildSheetModel } from '../src/invoice/sheet.ts';
 import { calculateTotals } from '../src/invoice/totals.ts';
 
 const DATA_DIR = process.env.DATA_DIR!;
@@ -151,7 +152,7 @@ await t('round trip: a saved invoice reloads (new session) to identical PDF byte
   const saved = (await page('POST', `/api/jobs/${job2}/invoices`, { invoice: before })).json;
   setSession({ ...owner.session });
   const back = (await page('GET', `/api/jobs/${job2}/invoices`)).json.find((r: any) => r.id === saved.id).invoice;
-  const hash = (i: any) => Buffer.from(generatePdfBytes(i, calculateTotals(i))).toString('base64');
+  const hash = (i: any) => Buffer.from(generateSheetPdf(buildSheetModel(i, calculateTotals(i)), { generatedAt: 'x' })).toString('base64');
   assert.equal(hash(back), hash(before));
 });
 

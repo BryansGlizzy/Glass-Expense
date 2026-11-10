@@ -4,8 +4,7 @@ import type { PdfLogo } from '../logo';
 
 /**
  * Writes finished pages as a PDF-1.4 file: catalog, page tree, a page + content stream per page, the two standard fonts, an optional
- * logo image (/DCTDecode, the JPEG bytes unchanged) and link annotations. Shared by the original-layout writer (generate.ts, whose output
- * is verified byte-for-byte against the original app) and the sheet-based writer (sheetPdf.ts). Deterministic: no clock, no randomness.
+ * logo image (/DCTDecode, the JPEG bytes unchanged) and link annotations. Used by the sheet-based writer (sheetPdf.ts). Deterministic: no clock, no randomness.
  */
 export function assemblePdf(pages: PageStream[], logo: PdfLogo | null): Uint8Array {
   const pageWidth = 612;

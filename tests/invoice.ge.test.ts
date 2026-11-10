@@ -1,10 +1,10 @@
 /**
- * GlassExpense-specific invoice logic (docs/INVOICING_PLAN.md §5.6-§5.14, success criteria 5, 8, 9, 11): settings, service packages,
- * the intake parser (Appendix C fixtures), prefill with website-rate adoption, estimate→final confirmation, pending steps,
+ * GlassExpense-specific invoice logic (docs/DOCUMENTATION.md §13.5-§13.7): settings, service packages,
+ * the intake parser (fixtures), prefill with website-rate adoption, estimate→final confirmation, pending steps,
  * payment links and the sales-tax split. Pure: needs no server.   Run:  npx tsx tests/invoice.ge.test.ts
  */
 import assert from 'node:assert/strict';
-import { defaultSettings, normalizeSettings, effectiveRates, pdfLabelsFor, sheetLabelsFor } from '../src/invoice/settings.ts';
+import { defaultSettings, normalizeSettings, effectiveRates, sheetLabelsFor } from '../src/invoice/settings.ts';
 import { applyPackage, normalizePackages, suggestPackages, packagesFromServices, automotiveStarter } from '../src/invoice/packages.ts';
 import { parseIntakeText, parseStructuredIntake, canonicalDescription, normalizePhone, displayPhone, normalizeName, normalizeStreet, parseVehicleLine, IntakeError } from '../src/invoice/intake.ts';
 import { buildNewInvoice, refreshFromJob, partsFromExpenses } from '../src/invoice/prefill.ts';
@@ -16,7 +16,7 @@ import { geOf, withGe, addEvent } from '../src/invoice/ge.ts';
 import { createEmptyInvoice, addLaborItem, addPartItem } from '../src/invoice/model.ts';
 import { calculateTotals } from '../src/invoice/totals.ts';
 import { normalizeInvoice } from '../src/invoice/normalize.ts';
-import { generatePdfBytes } from '../src/invoice/pdf/generate.ts';
+import { renderPdf } from '../src/invoice/render.ts';
 import { buildBrief, buildDraftMessages, parseDraft, applyDraft, verifyAiLines, medianBilledHours, DraftError } from '../src/invoice/aiDraft.ts';
 import { mergeResearch } from '../src/invoice/research.ts';
 import { jobBadge, attentionItems } from '../src/invoice/attention.ts';
@@ -48,10 +48,10 @@ await t('settings: "follow website rates" makes the latest posted quote the fall
   assert.deepEqual(effectiveRates(settings()), { hourlyRate: 0, fromWebsite: false });
 });
 
-await t('settings: signature text and the footer brand flow into the PDF and sheet labels', () => {
+await t('settings: the signature text flows into the PDF and sheet labels', () => {
   const s = normalizeSettings({ terms: { invoiceSignature: 'Work completed.' }, shop: { name: 'Acme' } });
-  const pdf = Buffer.from(generatePdfBytes(createEmptyInvoice({ meta: { invoiceNumber: 'N1' }, shop: { name: 'Acme' } }, NOW), undefined, { labels: pdfLabelsFor(s) })).toString('latin1');
-  assert.ok(pdf.includes('(Work completed.) Tj') && pdf.includes('(Acme  *  N1) Tj'));
+  const pdf = Buffer.from(renderPdf(createEmptyInvoice({ meta: { invoiceNumber: 'N1' }, shop: { name: 'Acme' } }, NOW), s).bytes).toString('latin1');
+  assert.ok(pdf.includes('(Work completed.) Tj') && pdf.includes('(Acme) Tj'));
   assert.equal((sheetLabelsFor(s).signatureText as any).invoice, 'Work completed.');
 });
 
@@ -78,7 +78,7 @@ await t('packages: normalization bounds the data; suggestions match website serv
   const starter = automotiveStarter(); assert.equal(starter.length, 6); assert.ok(starter.every(p => p.parts.length === 0 && p.labor.every(l => l.rate === null)), 'no prices: rates come from your hourly variable');
 });
 
-// ── intake (Appendix C) ─────────────────────────────────────────────────────
+// ── intake ─────────────────────────────────────────────────────
 const SAMPLE = `Name: SAMPLE CUSTOMER
 Email: Customer@Example.com
 Phone: 5550100142

@@ -4,7 +4,7 @@ import { createId } from './model';
 import type { DetailField, FeeLine, Invoice } from './types';
 
 /**
- * Pending steps (docs/INVOICING_PLAN.md §5.16, constraint C17): the server cannot read a user's Settings, so documents made by an
+ * Pending steps (docs/DOCUMENTATION.md §13.12, constraint C17): the server cannot read a user's Settings, so documents made by an
  * agent (or the server) may be sparse. The owner's browser completes them the next time the app opens. Idempotent: running it
  * twice changes nothing, and it never overwrites anything the owner or the agent filled in.
  */

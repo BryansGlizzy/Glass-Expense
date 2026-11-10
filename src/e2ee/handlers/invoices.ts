@@ -1,5 +1,5 @@
 /**
- * Invoices, estimates and their encrypted storage (docs/INVOICING_PLAN.md §5.8).
+ * Invoices, estimates and their encrypted storage (docs/DOCUMENTATION.md §13.6).
  *
  * One small JSON record per document, `{ v: 1, invoice }`, sealed under the JOB key (AAD "invoice|<jobId>|<id>"). Active job
  * members can read; the server only accepts writes from the job owner. PDFs and HTML are never stored.

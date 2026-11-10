@@ -1,6 +1,6 @@
-import { escapePdfText, getTextWidth, type Measure } from './text';
+import { escapePdfTextWinAnsi, helveticaWidth, type Measure } from './text';
 
-/** Low-level PDF-1.4 builders, ported verbatim from automotive-pdf `pdf.js` (same commands, same number formatting). */
+/** Low-level PDF-1.4 builders: the binary writer (objects, xref) and a page content stream (rects, lines, text, images, links). */
 
 export type Rgb = readonly [number, number, number];
 export interface RectOptions { fill?: Rgb; stroke?: Rgb; lineWidth?: number }
@@ -42,10 +42,9 @@ export interface PdfLink { x: number; y: number; w: number; h: number; url: stri
 
 export class PageStream {
   commands: string[] = [];
-  /** Clickable regions (URI link annotations). Empty for every document that has no links, which keeps the output unchanged. */
+  /** Clickable regions (URI link annotations). */
   links: PdfLink[] = [];
-  /** Layout 2 passes real Helvetica metrics and a WinAnsi-aware escaper; layout 1 keeps the original estimates. */
-  constructor(public pageNumber: number, private measure: Measure = getTextWidth, private escape: (s: unknown) => string = escapePdfText) {}
+  constructor(public pageNumber: number, private measure: Measure = helveticaWidth, private escape: (s: unknown) => string = escapePdfTextWinAnsi) {}
 
   drawRect(x: number, y: number, w: number, h: number, { fill, stroke, lineWidth = 0.5 }: RectOptions = {}): void {
     this.commands.push('q');

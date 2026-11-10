@@ -14,7 +14,7 @@ import { confirmEstimate, ConfirmError, isFinal } from '../src/invoice/review.ts
 import type { Invoice } from '../src/invoice/types.ts';
 
 /**
- * The agent permission model as a module (docs/INVOICING_PLAN.md §5.13 / D19). Both the HTTP routes (routes/agent.ts) and the
+ * The agent permission model as a module (docs/DOCUMENTATION.md §13.11 / D19). Both the HTTP routes (routes/agent.ts) and the
  * in-process research worker (research.ts) go through here, so there is exactly one place that knows how an API key's sealed
  * bundle opens, which jobs it may touch, and the append-only / estimate-only rules. No HTTP self-call, no second code path.
  */
@@ -176,7 +176,7 @@ export function createJob(a: Agent, userId: string, b: any, io: Server | null): 
   const rawAddress = str(b.client_address, 'client_address', { max: 500 }), rawPhone = str(b.client_phone, 'client_phone', { max: 40 });
   const blob: JobBlob = {
     ...emptyJob(), title, description, mode: b.mode === 'budget' ? 'budget' : 'expense',
-    // One formatter everywhere (plan §5.14): when an intake exists its normalized contact wins; the raw value is validated and is the fallback.
+    // One formatter everywhere (docs/DOCUMENTATION.md §13.7): when an intake exists its normalized contact wins; the raw value is validated and is the fallback.
     client_name: intake?.contact.name ?? rawName, client_address: rawAddress ?? intake?.location?.raw ?? null,
     client_email: intake?.contact.email ?? rawEmail, client_phone: intake?.contact.phone ?? rawPhone,
     job_rate: rate, invoice_notes: str(b.invoice_notes, 'invoice_notes', { max: 5000 }), invoice_tag: tag, intake,
@@ -259,7 +259,7 @@ export function addExpenses(a: Agent, userId: string, jobId: string, body: any, 
     : { ...(created[0] ? view(created[0]) : { id: duplicates[0], job_id: jobId }), duplicate: created.length === 0 } };
 }
 
-// ── Invoices (docs/INVOICING_PLAN.md §5.16) ─────────────────────────────────
+// ── Invoices (docs/DOCUMENTATION.md §13.12) ─────────────────────────────────
 /** Same derivation as the browser's `deterministicUuid`, so an agent's estimate and the app's auto-draft are the SAME record. */
 export function deterministicUuid(seed: string): string {
   const h = crypto.createHash('sha256').update(seed, 'utf8').digest().subarray(0, 16).toString('hex').split('');

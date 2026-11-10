@@ -12,7 +12,7 @@ const TITLES: Record<ProfileName, [string, string]> = {
   research: ['Research endpoint', 'A web-searching agent for “AI Research”. Slow calls are fine: it runs in the background for up to 10 minutes.'],
 };
 
-/** Named AI endpoint profiles, the research prompt and an optional notes sink (docs/INVOICING_PLAN.md §5.13). Stored only in your encrypted vault. */
+/** Named AI endpoint profiles, the research prompt and an optional notes sink (docs/DOCUMENTATION.md §13.11). Stored only in your encrypted vault. */
 export default function AiProfilesSettings() {
   const [profiles, setProfiles] = useState<Profiles>({}); const [research, setResearch] = useState<ResearchBlock>({ heading: '', prompt: '', sink_url: '', sink_token: '' });
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null); const [busy, setBusy] = useState(false); const [loaded, setLoaded] = useState(false);

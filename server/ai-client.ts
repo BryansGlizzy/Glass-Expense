@@ -3,7 +3,7 @@ import https from 'https';
 import { assertSafeOutboundUrl, ValidationError } from './security.js';
 
 /**
- * One OpenAI-compatible chat client for every server-side AI call (docs/INVOICING_PLAN.md §5.13): the draft-estimate relay, the
+ * One OpenAI-compatible chat client for every server-side AI call (docs/DOCUMENTATION.md §13.11): the draft-estimate relay, the
  * research tasks and the in-process research worker. SSRF-guarded (`assertSafeOutboundUrl`, with AI_ALLOWED_HOSTS for local
  * endpoints), never follows redirects, bounded response size, and uses `http(s).request` so calls can run for minutes: Node's
  * built-in fetch gives up waiting for response headers after 300 s, and a web-searching research agent can take up to ten (C13).

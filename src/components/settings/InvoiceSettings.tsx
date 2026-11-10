@@ -8,7 +8,7 @@ import { downloadBytes, jobsApi, packagesApi, settingsApi } from '../../invoice/
 import { prepareLogo } from '../../invoice/logoUpload';
 import { Btn, Card, Field, NumIn, Notice, TextIn, inputCls } from '../invoice/ui';
 
-/** Settings → Invoices (docs/INVOICING_PLAN.md §5.6): shop, rates & fees as variables, tax, defaults, labels, terms, payments, e-mail, automation, and the Service Packages builder. */
+/** Settings → Invoices (docs/DOCUMENTATION.md §13.5): shop, rates & fees as variables, tax, defaults, labels, terms, payments, e-mail, automation, and the Service Packages builder. */
 export default function InvoiceSettings() {
   const [s, setS] = useState<InvoicingSettings | null>(null);
   const [pkgs, setPkgs] = useState<ServicePackage[]>([]);

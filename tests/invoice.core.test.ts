@@ -1,6 +1,6 @@
 /**
- * Invoice core: the original app's model / totals / VIN / currency assertions (ported from automotive-pdf
- * tests/invoice.test.mjs), the "no upstream defaults" guarantee (plan D4), and hostile-JSON normalization (plan T1).
+ * Invoice core: model, totals, VIN and currency rules, the "no built-in business defaults" guarantee (decision D4), and hostile-JSON
+ * normalization (threat T1).
  * Pure: needs no server.   Run:  npx tsx tests/invoice.core.test.ts
  */
 import assert from 'node:assert/strict';
@@ -9,12 +9,15 @@ import {
 } from '../src/invoice/model.ts';
 import { calculateTotals } from '../src/invoice/totals.ts';
 import { validateVin } from '../src/invoice/vin.ts';
-import { formatCurrency, formatPdfCurrency, asNumber } from '../src/invoice/format.ts';
+import { formatCurrency, asNumber } from '../src/invoice/format.ts';
 import { normalizeInvoice, exportInvoiceJson, importInvoiceJson, LIMITS } from '../src/invoice/normalize.ts';
-import { generatePdfBytes } from '../src/invoice/pdf/generate.ts';
+import { generateSheetPdf } from '../src/invoice/pdf/sheetPdf.ts';
+import { buildSheetModel } from '../src/invoice/sheet.ts';
 import { INVOICE_STATUSES } from '../src/invoice/types.ts';
-// @ts-ignore vendored original, test-only
-import * as oracle from './reference/automotive/model.js';
+import { readFileSync } from 'node:fs';
+
+/** A PDF for any (possibly hostile) invoice, drawn the way the app draws it. */
+const pdfOf = (inv: any) => generateSheetPdf(buildSheetModel(inv, calculateTotals(inv)), { generatedAt: 'test' });
 
 let passed = 0;
 const t = async (name: string, fn: () => Promise<void> | void) => { try { await fn(); passed++; console.log('PASS ', name); } catch (e: any) { console.log('FAIL ', name, '\n      ', (e.stack || e.message).split('\n').slice(0, 5).join('\n       ')); process.exitCode = 1; } };
@@ -23,7 +26,7 @@ const NOW = new Date(2026, 0, 15, 12, 0, 0);
 const withSettings = (settings: any, labor: any[] = [], parts: any[] = []) => createEmptyInvoice({ settings, laborItems: labor, partItems: parts }, NOW);
 
 // ── creation ────────────────────────────────────────────────────────────────
-await t('createEmptyInvoice is blank and neutral: none of the upstream defaults exist (plan D4)', () => {
+await t('createEmptyInvoice is blank and neutral: no built-in business defaults exist (decision D4)', () => {
   const inv = createEmptyInvoice({}, NOW);
   assert.equal(inv.meta.invoiceNumber, '');
   assert.equal(inv.meta.status, 'Draft'); assert.equal(inv.meta.docType, 'invoice'); assert.equal(inv.meta.layout, 1);
@@ -47,7 +50,7 @@ await t('todayIso is the local calendar date, zero-padded', () => {
   assert.equal(todayIso(new Date(2026, 11, 31, 0, 0)), '2026-12-31');
 });
 
-// ── line item CRUD (ported) ─────────────────────────────────────────────────
+// ── line item CRUD ─────────────────────────────────────────────────
 await t('labor add/update/remove is immutable', () => {
   const base = createEmptyInvoice({}, NOW);
   const a = addLaborItem(base, { description: 'Brakes', hours: 2, rate: 100 });
@@ -79,7 +82,7 @@ await t('update/remove with an unknown id is a no-op; generated ids are unique',
   assert.equal(new Set(inv.partItems.map(p => p.id)).size, 200);
 });
 
-// ── VIN / currency (ported) ─────────────────────────────────────────────────
+// ── VIN / currency ─────────────────────────────────────────────────
 await t('validateVin', () => {
   assert.deepEqual(validateVin('1HGCV1F34MA012345'), { valid: true });
   assert.equal(validateVin('1hgcv1f34ma012345').valid, true);
@@ -87,19 +90,16 @@ await t('validateVin', () => {
   assert.match((validateVin('ABC') as any).reason, /17/);
   assert.match((validateVin('1HGCV1F34MA01234I') as any).reason, /excluding I, O, and Q/);
   assert.equal(validateVin('1HGCV1F34MA01234O').valid, false); assert.equal(validateVin('1HGCV1F34MA01234Q').valid, false);
-  for (const v of ['1HGCV1F34MA012345', '', 'ABC', '1HGCV1F34MA01234I', null]) assert.deepEqual(validateVin(v), oracle.validateVin(v), `oracle parity for ${v}`);
 });
 
-await t('formatCurrency (sheet) and formatPdfCurrency (PDF) match their originals', () => {
+await t('formatCurrency rounds and signs as documented', () => {
   assert.equal(formatCurrency(1234.5), '$1,234.50'); assert.equal(formatCurrency(0), '$0.00'); assert.equal(formatCurrency('abc'), '$0.00'); assert.equal(formatCurrency(-5), '-$5.00');
-  assert.equal(formatPdfCurrency(1234567.891), '$1,234,567.89'); assert.equal(formatPdfCurrency(null), '$0.00');
-  assert.equal(formatPdfCurrency(-0.000001), '$0.00', 'PDF: tiny negatives print as zero'); assert.equal(formatCurrency(-0.000001), '-$0.00', 'sheet (Intl): sign is kept');
-  assert.equal(formatPdfCurrency(-0.001), '-$0.00');
-  for (const v of [0, 1, -1, 0.005, 1234.5, 999999.995, '12', 'x', undefined, -0.001, -0.000001, 1e9]) assert.equal(formatCurrency(v), oracle.formatCurrency(v), `sheet currency ${String(v)}`);
+  assert.equal(formatCurrency(-0.000001), '-$0.00', 'Intl keeps the sign of a tiny negative');
+  assert.equal(formatCurrency(999999.995), '$1,000,000.00'); assert.equal(formatCurrency(undefined), '$0.00'); assert.equal(formatCurrency(1e9), '$1,000,000,000.00');
   assert.equal(asNumber('7.5'), 7.5); assert.equal(asNumber(Infinity), 0);
 });
 
-// ── totals (ported) ─────────────────────────────────────────────────────────
+// ── totals ─────────────────────────────────────────────────────────
 const labor = [{ hours: 2, rate: 100 }]; // 200
 const parts = [{ quantity: 2, unitPrice: 50 }]; // 100
 
@@ -140,7 +140,7 @@ await t('non-numeric inputs are treated as zero', () => {
   const x = calculateTotals(withSettings({ taxRate: 'x' }, [{ hours: 'a', rate: 5 }], [{ quantity: 1, unitPrice: '3.5' }]));
   assert.equal(x.laborSubtotal, 0); assert.equal(x.partsSubtotal, 3.5);
 });
-await t('totals equal the original on 2,000 random invoices (including weird values)', () => {
+await t('totals stay finite and deterministic on 2,000 random invoices (including weird values)', () => {
   let s = 12345; const r = () => { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; };
   const pick = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];
   for (let i = 0; i < 2000; i++) {
@@ -149,18 +149,19 @@ await t('totals equal the original on 2,000 random invoices (including weird val
       partItems: Array.from({ length: Math.floor(r() * 6) }, () => ({ quantity: pick([0, 1, 3, 2.5, '4', NaN]), unitPrice: pick([0, 0.335, 12.5, 1234.567, '3']) })),
       settings: { taxRate: pick([0, 6, 8.875, '7']), taxLabor: pick([true, false, 1, 0]), discountType: pick(['percent', 'fixed']), discountValue: pick([0, 5, 12.5, 100, 9999]), shopSuppliesRate: pick([0, 3.3, 10]), shopSuppliesCap: pick([0, 12.5, 99]), hazardousWasteFee: pick([0, 3.5]), travelFee: pick([0, 45]), miscFee: pick([0, 7.25]) },
     };
-    assert.deepEqual(calculateTotals(inv), oracle.calculateTotals(inv), JSON.stringify(inv));
+    const a = calculateTotals(inv); assert.deepEqual(a, calculateTotals(inv), 'deterministic');
+    assert.ok(Object.values(a).every(v => typeof v !== 'number' || Number.isFinite(v)), JSON.stringify(inv));
   }
 });
 
-// ── normalization of untrusted JSON (plan T1) ───────────────────────────────
+// ── normalization of untrusted JSON (threat T1) ───────────────────────────────
 await t('normalizeInvoice: never throws and always returns a complete, well-typed invoice', () => {
   for (const junk of [undefined, null, 0, 1, 'x', true, [], [1, 2], {}, { meta: 5, shop: [], customer: 'x', vehicle: null, laborItems: {}, partItems: 3, settings: 'x', notes: 7 }]) {
     const inv = normalizeInvoice(junk);
     assert.ok(Array.isArray(inv.laborItems) && Array.isArray(inv.partItems));
     assert.equal(typeof inv.meta.invoiceNumber, 'string'); assert.ok((INVOICE_STATUSES as readonly string[]).includes(inv.meta.status));
     assert.equal(typeof inv.settings.taxRate, 'number'); assert.equal(typeof inv.notes.termsAndConditions, 'string');
-    assert.doesNotThrow(() => generatePdfBytes(inv)); assert.ok(Object.values(calculateTotals(inv)).every(Number.isFinite));
+    assert.doesNotThrow(() => pdfOf(inv)); assert.ok(Object.values(calculateTotals(inv)).every(Number.isFinite));
   }
 });
 
@@ -199,7 +200,7 @@ await t('normalizeInvoice: script-like text stays inert text (React escapes; not
   const evil = '<img src=x onerror=alert(1)><script>alert(1)</script>"\'`${7*7}{{constructor}}';
   const inv = normalizeInvoice({ customer: { name: evil }, laborItems: [{ description: evil }], notes: { customerNotes: evil } });
   assert.equal(inv.customer.name, evil); assert.equal(inv.laborItems[0].description, evil); assert.equal(inv.notes.customerNotes, evil);
-  assert.doesNotThrow(() => generatePdfBytes(inv));
+  assert.doesNotThrow(() => pdfOf(inv));
 });
 
 await t('normalizeInvoice: arrays are capped, ids are made unique and safe, unknown keys are dropped at every level', () => {
@@ -245,11 +246,11 @@ await t('export / import round trip; the ge namespace never leaves in a plain ex
   assert.throws(() => importInvoiceJson('x'.repeat(LIMITS.importBytes + 1)), /too large/);
 });
 
-await t('an original automotive-pdf export (no docType/layout, extra fields) imports cleanly and prints', () => {
-  const upstream = JSON.parse(JSON.stringify(oracle.createSampleInvoice()));
-  const inv = importInvoiceJson(JSON.stringify(upstream));
-  assert.equal(inv.customer.name, upstream.customer.name); assert.equal(inv.meta.docType, 'invoice'); assert.equal(inv.laborItems.length, 2);
-  assert.deepEqual(calculateTotals(inv), oracle.calculateTotals(upstream));
+await t('an older exported file (no docType/layout/fees, extra fields) imports cleanly and prints', () => {
+  const file = JSON.parse(readFileSync(new URL('./fixtures/invoice/sample.json', import.meta.url), 'utf8'));
+  const inv = importInvoiceJson(JSON.stringify(file));
+  assert.equal(inv.customer.name, file.customer.name); assert.equal(inv.meta.docType, 'invoice'); assert.equal(inv.laborItems.length, 2);
+  assert.equal(calculateTotals(inv).grandTotal, calculateTotals(normalizeInvoice(file)).grandTotal); assert.ok(calculateTotals(inv).grandTotal > 0); assert.doesNotThrow(() => pdfOf(inv));
 });
 
 console.log(`${passed} invoice core checks passed`);

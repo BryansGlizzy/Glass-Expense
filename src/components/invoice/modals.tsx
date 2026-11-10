@@ -16,7 +16,7 @@ import { geOf } from '../../invoice/ge';
 import type { ServicePackage } from '../../invoice/packages';
 import { Btn, Field, Modal, Notice, NumIn, TextIn, inputCls } from './ui';
 
-/** Estimate → Final: a checklist of what to look at, then an explicit, recorded confirmation (plan §5.10). */
+/** Estimate → Final: a checklist of what to look at, then an explicit, recorded confirmation (docs/DOCUMENTATION.md §13.8). */
 export function ReviewConfirmModal({ invoice, onConfirm, onClose }: { invoice: Invoice; onConfirm: (note: string) => void; onClose: () => void }) {
   const [note, setNote] = useState('');
   const items = useMemo(() => reviewChecklist(invoice), [invoice]);

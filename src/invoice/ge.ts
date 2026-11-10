@@ -1,7 +1,7 @@
 import type { Invoice } from './types';
 
 /**
- * Typed access to the `ge` namespace of an invoice (docs/INVOICING_PLAN.md §5.8-§5.11, §5.16). The core keeps `ge` opaque and
+ * Typed access to the `ge` namespace of an invoice (docs/DOCUMENTATION.md §13.6-§13.9, §13.12). The core keeps `ge` opaque and
  * sanitized (`normalizeInvoice`); this module gives the application code a checked view of it. Pure.
  */
 
