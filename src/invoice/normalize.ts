@@ -95,7 +95,8 @@ export function normalizeDetails(raw: unknown): InvoiceDetails | undefined {
     seen.add(key);
     fields.push({ key, label: str(o.label, 60) || key, type: oneOf(o.type, FIELD_TYPES, 'text'), value: str(o.value, 200) });
   }
-  return { title: str(raw.title, 60) || 'Details', fields };
+  const setId = typeof raw.setId === 'string' && /^[\w.:-]{1,64}$/.test(raw.setId) ? raw.setId : undefined;
+  return { title: str(raw.title, 60) || 'Details', fields, ...(setId ? { setId } : {}) };
 }
 
 /** Copies JSON-safe data only: bounded depth, keys, array length and string length; no prototype-polluting keys. */

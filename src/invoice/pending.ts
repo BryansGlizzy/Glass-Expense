@@ -1,7 +1,8 @@
 import { addEvent, geOf, withGe } from './ge';
-import type { InvoicingSettings } from './settings';
+import { detailSetFor, DEFAULT_DETAILS_TITLE, type InvoicingSettings } from './settings';
+import { applyDetailSet } from './detailSets';
 import { createId } from './model';
-import type { DetailField, FeeLine, Invoice } from './types';
+import type { FeeLine, Invoice } from './types';
 
 /**
  * Pending steps (docs/DOCUMENTATION.md §13.12, constraint C17): the server cannot read a user's Settings, so documents made by an
@@ -12,7 +13,7 @@ import type { DetailField, FeeLine, Invoice } from './types';
 /**
  * Documents made by an agent (or imported) use the original fixed fee fields and vehicle box. When the owner's browser finishes them,
  * they move to the user's own fee lines and detail fields without losing anything: every non-zero fixed fee becomes a fee line, and the
- * vehicle values fill the user's matching fields (the vehicle box stays if the user has no detail fields to put them in).
+ * vehicle values fill the matching fields of the user's detail preset linked to the document's number (the vehicle box stays if no preset applies).
  */
 export function upgradeToDynamic(inv: Invoice, s: InvoicingSettings): Invoice {
   let out = inv;
@@ -25,13 +26,12 @@ export function upgradeToDynamic(inv: Invoice, s: InvoicingSettings): Invoice {
     out = { ...out, fees, settings: { ...st, travelFee: 0, shopSuppliesRate: 0, shopSuppliesCap: 0, hazardousWasteFee: 0, miscFee: 0 } };
   }
   if (!out.details) {
+    // The user's preset linked to this document's number fills the box (the old vehicle values carry over by key).
+    const set = detailSetFor(s.detailSets, [out.meta.invoiceNumber]);
     const v = out.vehicle as unknown as Record<string, string>;
-    const legacy: Record<string, string> = { year: v.year, make: v.make, model: v.model, vin: v.vin, license_plate: v.licensePlate, mileage: v.mileage, engine: v.engine, service_advisor: v.serviceAdvisor };
-    const hasVehicle = Object.values(legacy).some(x => (x || '').trim() !== '');
-    if (s.details.fields.length > 0 || !hasVehicle) {
-      const fields: DetailField[] = s.details.fields.map(d => ({ key: d.key, label: d.label, type: d.type, value: (legacy[d.key] || '').trim() || d.default }));
-      out = { ...out, details: { title: s.details.title, fields } };
-    }
+    const hasVehicle = ['year', 'make', 'model', 'vin', 'licensePlate', 'mileage', 'engine', 'serviceAdvisor'].some(k => (v[k] || '').trim() !== '');
+    if (set) out = applyDetailSet(out, set);
+    else if (!hasVehicle) out = { ...out, details: { title: DEFAULT_DETAILS_TITLE, fields: [] } }; // otherwise the vehicle box stays so nothing is lost
   }
   return out;
 }

@@ -113,7 +113,8 @@ export interface FeeLine { id: string; label: string; kind: FeeKind; value: numb
 export const FIELD_TYPES = ['text', 'number', 'date', 'vin'] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 export interface DetailField { key: string; label: string; type: FieldType; value: string }
-export interface InvoiceDetails { title: string; fields: DetailField[] }
+/** `setId` records which of the user's detail-field presets (Settings → Invoices) filled the box; absent on older or hand-made boxes. */
+export interface InvoiceDetails { title: string; fields: DetailField[]; setId?: string }
 
 export interface Invoice {
   meta: InvoiceMeta;

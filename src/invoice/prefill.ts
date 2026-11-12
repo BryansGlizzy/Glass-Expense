@@ -1,6 +1,6 @@
 import { addPartItem, createEmptyInvoice, createId, todayIso } from './model';
 import { displayPhone, type IntakeWarning, type JobIntake } from './intake';
-import { effectiveRates, quoteVariable, type InvoicingSettings } from './settings';
+import { DEFAULT_DETAILS_TITLE, detailSetFor, effectiveRates, quoteVariable, type InvoicingSettings } from './settings';
 import type { DetailField, DocType, FeeLine, Invoice } from './types';
 
 /**
@@ -21,6 +21,7 @@ export interface JobLike {
   client_phone?: string | null;
   client_address?: string | null;
   invoice_number?: string | null;
+  invoice_tag?: string | null;
   invoice_notes?: string | null;
   job_rate?: number | null;
 }
@@ -78,8 +79,9 @@ export function buildNewInvoice(opts: {
     return { id: createId('fee'), label: t.label, kind: t.kind, value, cap: t.cap, taxable: t.taxable };
   });
 
-  // Detail fields: the user's own list, each filled by its key.
-  const fields: DetailField[] = settings.details.fields.map(def => {
+  // Detail fields: the preset linked to this job's number (AUTO-A00001 → the set that lists AUTO), each field filled by its key.
+  const detailSet = detailSetFor(settings.detailSets, [job?.invoice_number, job?.invoice_tag]);
+  const fields: DetailField[] = (detailSet?.fields ?? []).map(def => {
     const v = fieldValue(intake, def); prov[`details.${def.key}`] = v.source;
     return { key: def.key, label: def.label, type: def.type, value: v.value };
   });
@@ -111,7 +113,7 @@ export function buildNewInvoice(opts: {
     },
   }, now);
   invoice.fees = fees;                                    // dynamic fees mode
-  invoice.details = { title: settings.details.title, fields };
+  invoice.details = { title: detailSet?.title ?? DEFAULT_DETAILS_TITLE, fields, ...(detailSet ? { setId: detailSet.id } : {}) };
 
   // What was filled, so a later refresh only touches fields the user has not changed since.
   invoice.ge = { prefill: { at: now.toISOString(), hourlyRate: Number(hourly) || 0, rateSource: prov['rates.hourly'], snapshot: prefillSnapshot(invoice), jobId: job?.id ?? null } };

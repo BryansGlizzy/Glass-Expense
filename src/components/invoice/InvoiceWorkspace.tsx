@@ -11,6 +11,7 @@ import { parseIntakeText } from '../../invoice/intake';
 import { applyPackage, automotiveStarter, normalizePackage, packagesFromServices, type ServicePackage } from '../../invoice/packages';
 import { confirmEstimate, reopenAsEstimate } from '../../invoice/review';
 import { applyPending, needsPending } from '../../invoice/pending';
+import { autoApplyDetailSet } from '../../invoice/detailSets';
 import { recordPayment, summarizePayments } from '../../invoice/salestax';
 import { addEvent, geOf, withGe } from '../../invoice/ge';
 import { effectiveRates, defaultSettings, type InvoicingSettings } from '../../invoice/settings';
@@ -68,13 +69,19 @@ export default function InvoiceWorkspace({ jobId, openId }: { jobId?: string | n
   const open = useCallback((r: InvoiceRecord, jobsNow?: JobView[], s?: InvoicingSettings) => {
     let inv = r.invoice; const base = json(inv);
     if (r.can_edit && needsPending(inv)) inv = applyPending(inv, s ?? settings); // agent-made documents are finished here (plan C17)
+    let autoSet = '';
+    if (r.can_edit) { // an existing document with no detail fields yet gets the preset linked to its job number (never replaces a filled box)
+      const jb = (jobsNow ?? jobs).find(x => x.id === r.job_id);
+      const auto = autoApplyDetailSet(inv, s ?? settings, [jb?.invoice_number, jb?.invoice_tag], jb ? jb.intake ?? parseIntakeText(jb.description) : null);
+      if (auto.set) { inv = auto.invoice; autoSet = auto.set.name; }
+    }
     const c: Current = { recordId: r.id, jobId: r.job_id, rev: r.rev, canEdit: r.can_edit };
     let restored = false;
     try { const w = JSON.parse(sessionStorage.getItem(workingKey(c)) || 'null'); if (w && w.saved === base) { inv = w.invoice; restored = true; } } catch { /* ignore */ }
     setCurrent(c); setInvoiceState(inv); setSaved(base); setWarnings([]); setFromWebsite(geOf(inv).origin === 'api-auto' || (inv.ge?.prefill as any)?.rateSource === 'website');
     if (restored) say('Restored your unsaved edits.');
-    void jobsNow;
-  }, [settings, say]);
+    else if (autoSet) say(`Applied your “${autoSet}” detail fields. Save to keep them.`);
+  }, [settings, jobs, say]);
 
   const startNew = useCallback(async (forJobId: string, docType: 'estimate' | 'invoice' = 'estimate', ctx?: { j: JobView[]; s: InvoicingSettings }) => {
     setBusy(true);
@@ -249,7 +256,7 @@ export default function InvoiceWorkspace({ jobId, openId }: { jobId?: string | n
               onSeedStarter={() => savePackages([...packages, ...automotiveStarter()])} onSeedSite={() => savePackages([...packages, ...packagesFromServices(siteServices, packages)])} />
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-              <div className="no-print"><InvoiceEditor invoice={invoice} onChange={setInvoice} readOnly={!canEdit} hourlyRate={hourlyRate} fromWebsite={{ rates: fromWebsite }} feeTemplates={settings.fees} /></div>
+              <div className="no-print"><InvoiceEditor invoice={invoice} onChange={setInvoice} readOnly={!canEdit} hourlyRate={hourlyRate} fromWebsite={{ rates: fromWebsite }} feeTemplates={settings.fees} detailSets={settings.detailSets} intake={intake} /></div>
               <div className="space-y-4">
                 <div>
                   <div className="flex items-center justify-between mb-2 no-print"><span className="text-xs font-bold tracking-wide text-gray-400">LIVE PRINTABLE PREVIEW</span></div>

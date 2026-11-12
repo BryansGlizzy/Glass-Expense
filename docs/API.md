@@ -370,7 +370,7 @@ POST /api/agent/v1/jobs
   "intake_text": "optional: a text description to parse instead" }
 ```
 
-**Detail fields (any trade).** In *Settings → Invoices → Detail fields* the owner designs the information box on their estimates (a mechanic's vehicle, a plumber's job site, a photographer's venue…). Every field has a **variable name**; post a value under `fields.<name>` and the field fills itself in on the estimate (names are lower-case letters, digits and `_`, values text or numbers up to 200 characters, at most 30). The `vehicle` object above fills detail fields named `year`, `make`, `model`, `engine` and `vin`, so a mechanic's existing website keeps working unchanged. Values for names the owner has not defined are kept in the job's `intake.fields` and its description but not printed.
+**Detail fields (any trade).** In *Settings → Invoices → Detail field presets* the owner designs the information box on their estimates (a mechanic's vehicle, a plumber's job site, a photographer's venue…), one preset per kind of work; a job whose invoice number starts with a preset's job code (e.g. `AUTO-…`) uses that preset. Every field has a **variable name**; post a value under `fields.<name>` and the field fills itself in on the estimate (names are lower-case letters, digits and `_`, values text or numbers up to 200 characters, at most 30). The `vehicle` object above fills detail fields named `year`, `make`, `model`, `engine` and `vin`, so a mechanic's existing website keeps working unchanged. Values for names the owner has not defined are kept in the job's `intake.fields` and its description but not printed.
 
 **Fees.** The owner defines their own fees in *Settings → Invoices → Fees* (flat or a percentage of labor / subtotal, optionally capped or taxable). A fee can name a **website variable**: `base_fee` is `quote.base_fee`, anything else is looked up in `quote.variables` (for example a fee tied to `rush_fee`). When a job's quote carries that variable the fee takes that amount; otherwise the latest quote the app has seen, then the owner's own amount.
 
@@ -483,7 +483,7 @@ Unknown top-level keys are ignored. Types are checked: a wrong type is a `400` w
 
 ### 3B.4 Detail fields (any trade): `fields.<name>`
 
-The owner builds the information box printed on their estimate in **Settings → Invoices → Detail fields**: a title (for example *Event details*, *Job site*, *Vehicle Information*) and any number of fields. Each field has:
+The owner builds the information box printed on their estimate in **Settings → Invoices → Detail field presets** (several presets; the one whose job code matches the job's invoice number is used, otherwise the preset with no code): a title (for example *Event details*, *Job site*, *Vehicle Information*) and any number of fields. Each field has:
 
 | Property | Meaning |
 |---|---|

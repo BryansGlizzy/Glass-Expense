@@ -13,6 +13,19 @@ export class ConfirmError extends Error {}
 
 export interface ChecklistItem { id: string; label: string; ok: boolean; detail?: string }
 
+/**
+ * The details row follows whatever detail box is on the document (its own title and fields, from the preset applied to it). Only a
+ * document with no custom box at all (original format) is still checked for vehicle information. A box with no fields has nothing to check.
+ */
+function detailsItem(invoice: Invoice): ChecklistItem[] {
+  const d = invoice.details;
+  if (!d) return [{ id: 'details', label: 'Vehicle details', ok: invoice.vehicle.make.trim() !== '' || invoice.vehicle.model.trim() !== '' }];
+  if (d.fields.length === 0) return [];
+  const blank = d.fields.filter(f => f.value.trim() === '');
+  const shown = blank.slice(0, 4).map(f => f.label).join(', ') + (blank.length > 4 ? ` +${blank.length - 4} more` : '');
+  return [{ id: 'details', label: d.title.trim() || 'Details', ok: blank.length < d.fields.length, detail: blank.length ? `${blank.length === d.fields.length ? 'All fields are blank' : 'Blank'}: ${shown}` : undefined }];
+}
+
 /** What a person should look at before confirming. Advisory: failing items warn, they do not block. */
 export function reviewChecklist(invoice: Invoice): ChecklistItem[] {
   const t = calculateTotals(invoice);
@@ -22,7 +35,7 @@ export function reviewChecklist(invoice: Invoice): ChecklistItem[] {
     { id: 'parts', label: 'Parts used and their prices', ok: invoice.partItems.every(p => p.quantity > 0 && p.unitPrice >= 0 && p.description.trim() !== '') },
     { id: 'fees', label: 'Fees, discount and tax', ok: true, detail: `Total ${t.grandTotal.toFixed(2)}` },
     { id: 'customer', label: 'Customer name and contact details', ok: invoice.customer.name.trim() !== '' && (invoice.customer.phone.trim() !== '' || invoice.customer.email.trim() !== '') },
-    { id: 'vehicle', label: 'Vehicle details', ok: invoice.vehicle.make.trim() !== '' || invoice.vehicle.model.trim() !== '' },
+    ...detailsItem(invoice),
     { id: 'terms', label: 'Terms and conditions', ok: invoice.notes.termsAndConditions.trim() !== '' },
     { id: 'total', label: 'Total is greater than zero', ok: t.grandTotal > 0 },
   ];

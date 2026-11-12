@@ -105,10 +105,10 @@ await t('settings: older fixed-fee settings migrate to fees once; explicit lists
   assert.deepEqual(old.fees.map(f => [f.label, f.kind, f.value, f.cap, f.quoteKey]), [['Diagnostic/Travel', 'flat', 45, 0, 'base_fee'], ['Shop Supplies Fee', 'percentOfLabor', 5, 35, ''], ['Hazardous Waste Fee', 'flat', 3.5, 0, ''], ['Misc. Fee', 'flat', 7, 0, '']]);
   assert.ok(old.fees.every(f => f.auto && !f.taxable) && old.rates.hourlyRate === 55 && !('baseFee' in old.rates));
   assert.deepEqual(normalizeSettings({ rates: { baseFee: 45 }, fees: [] }).fees, [], 'an explicit empty list is respected');
-  const d = defaultSettings(); assert.deepEqual([d.fees, d.details.fields, d.numbering.prefix], [[], [], 'INV']);
+  const d = defaultSettings(); assert.deepEqual([d.fees, d.detailSets, d.numbering.prefix], [[], [], 'INV']);
   assert.equal(normalizeSettings({ numbering: { prefix: ' fa-/x!*y ' } }).numbering.prefix, 'FA-XY'); assert.equal(normalizeSettings({ numbering: { prefix: '!!!' } }).numbering.prefix, 'INV');
   assert.deepEqual([slugKey('License Plate'), slugKey('Year / Make'), slugKey('3rd floor'), slugKey('!!!')], ['license_plate', 'year_make', 'f_3rd_floor', '']);
-  const f = normalizeSettings({ details: { fields: [{ label: 'Venue' }, { label: 'Venue' }, { label: '', key: 'x' }, { label: '!!!' }, { key: 'BAD', label: 'Ok' }] } }).details.fields;
+  const f = normalizeSettings({ details: { fields: [{ label: 'Venue' }, { label: 'Venue' }, { label: '', key: 'x' }, { label: '!!!' }, { key: 'BAD', label: 'Ok' }] } }).detailSets[0].fields;
   assert.deepEqual(f.map(x => x.key), ['venue', 'venue_1', 'x', 'ok'], 'duplicate and invalid keys are repaired or dropped');
   const messy = normalizeSettings({ fees: [{ label: 'A', kind: 'percentOfLabor', value: 999, quoteKey: 'bad key!' }, { label: 'B', auto: false }] }); assert.deepEqual([messy.fees[0].value, messy.fees[0].quoteKey, messy.fees[1].auto], [100, '', false]);
   assert.deepEqual(normalizeSettings(normalizeSettings(old)), normalizeSettings(old), 'idempotent'); assert.equal(FIELD_PRESETS.automotive.fields.some(x => x.type === 'vin'), true);
@@ -129,7 +129,7 @@ await t('intake: fields validate strictly, appear in the canonical description (
 await t('prefill: fees come from YOUR fee list (auto ones only) and follow website variables; detail fields fill by key; nothing else is invented', () => {
   const s = settings({ rates: { hourlyRate: 60, followWebsite: true, websiteQuote: { hourlyRate: 58, baseFee: 40, variables: { rush: 20 }, at: '2026-11-01' } },
     fees: [{ id: 'trip', label: 'Trip charge', value: 30, quoteKey: 'base_fee', taxable: true }, { id: 'rush', label: 'Rush', value: 10, quoteKey: 'rush' }, { id: 'own', label: 'Disposal', value: 12 }, { id: 'manual', label: 'Manual only', value: 5, auto: false }],
-    details: { title: 'Event', fields: [{ label: 'Venue', default: 'TBD' }, { label: 'Guests' }] } });
+    detailSets: [{ id: 'ev', name: 'Event', title: 'Event', fields: [{ label: 'Venue', default: 'TBD' }, { label: 'Guests' }] }] });
   const withQuote = buildNewInvoice({ job: { id: 'j' }, intake: parseStructuredIntake({ fields: { venue: 'Hall A' }, quote: { base_fee: 45, variables: { rush: 0 } } }, NOW), settings: s, now: NOW });
   assert.deepEqual(withQuote.invoice.fees!.map(f => [f.label, f.value, f.taxable]), [['Trip charge', 45, true], ['Rush', 0, false], ['Disposal', 12, false]], 'this job\'s quote first; manual-only fees are not added');
   assert.deepEqual([withQuote.provenance['fees.trip'], withQuote.provenance['fees.own'], withQuote.provenance['details.venue']], ['website', 'settings', 'intake']);
@@ -142,7 +142,7 @@ await t('prefill: fees come from YOUR fee list (auto ones only) and follow websi
 });
 
 await t('prefill: "Refresh from job" also refreshes untouched detail fields and keeps your edits', () => {
-  const s = settings({ details: { fields: [{ label: 'Venue' }, { label: 'Date' }] } });
+  const s = settings({ detailSets: [{ id: 'ev', title: 'Job', fields: [{ label: 'Venue' }, { label: 'Date' }] }] });
   const first = buildNewInvoice({ job: { id: 'j' }, intake: parseStructuredIntake({ fields: { venue: 'Old Hall', date: '2026-12-01' } }, NOW), settings: s, now: NOW }).invoice;
   const edited = { ...first, details: { ...first.details!, fields: first.details!.fields.map(f => (f.key === 'date' ? { ...f, value: 'my own date' } : f)) } };
   const fresh = buildNewInvoice({ job: { id: 'j' }, intake: parseStructuredIntake({ fields: { venue: 'New Hall', date: '2027-01-01' } }, NOW), settings: s, now: NOW }).invoice;
@@ -152,7 +152,7 @@ await t('prefill: "Refresh from job" also refreshes untouched detail fields and 
 
 await t('agent-made invoices upgrade to dynamic mode without changing the total, losing a fee, or losing the vehicle', () => {
   const legacy = base({}, { settings: { taxRate: 6, travelFee: 45, shopSuppliesRate: 10, shopSuppliesCap: 8, hazardousWasteFee: 3.5, miscFee: 7 }, vehicle: { year: '2018', make: 'Toyota', model: 'Tacoma', vin: '5TFAX5GN0JX000000' }, meta: { docType: 'estimate', invoiceNumber: 'A-1' } });
-  const s = settings({ details: FIELD_PRESETS.automotive });
+  const s = settings({ detailSets: [{ id: 'auto', ...FIELD_PRESETS.automotive }] });
   const up = upgradeToDynamic(legacy, s);
   assert.equal(calculateTotals(up).grandTotal, calculateTotals(legacy).grandTotal, 'same total');
   assert.deepEqual(up.fees!.map(f => [f.label, f.kind, f.value, f.cap]), [['Travel Fee', 'flat', 45, 0], ['Shop Supplies Fee', 'percentOfLabor', 10, 8], ['Hazardous Waste Fee', 'flat', 3.5, 0], ['Misc. Fee', 'flat', 7, 0]]);
@@ -162,7 +162,7 @@ await t('agent-made invoices upgrade to dynamic mode without changing the total,
   assert.equal(upgradeToDynamic(legacy, settings()).details, undefined, 'no detail fields of your own: the vehicle box stays so nothing is lost');
   assert.deepEqual(upgradeToDynamic(base({}, { meta: { docType: 'estimate' } }), settings()).details, { title: 'Job Details', fields: [] }, 'a document with no vehicle data gets the (empty) custom box');
   const agent = confirmEstimate({ ...legacy }, { by: 'agent', keyId: 'k' }, 'auto', { now: NOW });
-  const done = applyPending(agent, settings({ details: FIELD_PRESETS.automotive, terms: { invoiceTerms: 'FINAL' } }), NOW);
+  const done = applyPending(agent, settings({ detailSets: [{ id: 'auto', ...FIELD_PRESETS.automotive }], terms: { invoiceTerms: 'FINAL' } }), NOW);
   assert.ok(Array.isArray(done.fees) && done.details && done.notes.termsAndConditions === 'FINAL' && geOf(done).pending.length === 0);
 });
 

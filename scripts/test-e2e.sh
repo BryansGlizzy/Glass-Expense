@@ -25,7 +25,7 @@ curl -sf "$TEST_BASE/api/info" >/dev/null || { echo "Server failed to start:"; c
 
 status=0
 # Invoicing 2.0 (docs/DOCUMENTATION.md). The pure suites (invoice.*) need no server but run here so one command covers everything.
-for t in crypto server.e2ee client.e2ee migration examples reports agent agent.invoices ai.relay mailer invoice.e2ee invoice.core invoice.sheet invoice.sheetpdf invoice.logo invoice.ge invoice.dynamic invoice.ui; do
+for t in crypto server.e2ee client.e2ee migration examples reports agent agent.invoices ai.relay mailer invoice.e2ee invoice.core invoice.sheet invoice.sheetpdf invoice.logo invoice.ge invoice.dynamic invoice.detailsets invoice.ui; do
   f="tests/$t.test.ts"; [ -f "$f" ] || f="tests/$t.test.tsx"
   echo "━━ $f"
   npx tsx "$f" 2>&1 | grep -v -i "deprecat" | grep -v "trace-deprecation" || true

@@ -7,7 +7,9 @@ import { calculateTotals } from '../../invoice/totals';
 import { formatCurrency } from '../../invoice/format';
 import { validateVin } from '../../invoice/vin';
 import { geOf } from '../../invoice/ge';
-import type { FeeTemplate } from '../../invoice/settings';
+import { detailSetFor, type DetailSet, type FeeTemplate } from '../../invoice/settings';
+import { applyDetailSet } from '../../invoice/detailSets';
+import type { JobIntake } from '../../invoice/intake';
 import { Btn, Card, Field, NumIn, TextIn, inputCls, StatusBadge } from './ui';
 
 /**
@@ -27,6 +29,10 @@ export interface EditorProps {
   /** The user's saved fees, offered in "Add a saved fee". */
   feeTemplates?: FeeTemplate[];
   labels?: { travel: string; supplies: string };
+  /** The user's detail-field presets, offered in "Apply detail fields". */
+  detailSets?: DetailSet[];
+  /** The job's intake, used to fill blanks of a preset when it is applied. */
+  intake?: JobIntake | null;
 }
 
 const set = <K extends keyof Invoice>(k: K, patch: Partial<Invoice[K]>) => (i: Invoice): Invoice => ({ ...i, [k]: { ...(i[k] as object), ...patch } } as Invoice);
@@ -80,7 +86,23 @@ function FeesEditor({ invoice: inv, onChange, readOnly, feeTemplates = [] }: Pic
   );
 }
 
-export function InvoiceEditor({ invoice: inv, onChange, readOnly = false, hourlyRate, fromWebsite, feeTemplates, labels }: EditorProps) {
+/**
+ * "Apply detail fields…": choose one of the user's presets for this document. The preset that matches the document's number is marked.
+ * Values already entered are kept, blanks are filled from the job, and typed values the preset has no field for stay below it.
+ */
+function DetailSetPicker({ invoice, sets, intake, onChange }: { invoice: Invoice; sets: DetailSet[]; intake: JobIntake | null; onChange: (fn: (i: Invoice) => Invoice) => void }) {
+  if (sets.length === 0) return <span className="text-[11px] text-gray-500">Make presets in Settings → Invoices</span>;
+  const linked = detailSetFor(sets, [invoice.meta.invoiceNumber]);
+  const current = invoice.details?.setId;
+  return (
+    <select aria-label="Apply detail fields" className={`${inputCls} !w-auto !py-1 text-xs`} value="" onChange={e => { const set = sets.find(x => x.id === e.target.value); if (set) onChange(i => applyDetailSet(i, set, intake)); }}>
+      <option value="">Apply detail fields…</option>
+      {sets.map(x => <option key={x.id} value={x.id}>{x.name}{x.id === current ? ' (applied)' : ''}{x.id === linked?.id && x.id !== current ? ' (matches this number)' : ''}</option>)}
+    </select>
+  );
+}
+
+export function InvoiceEditor({ invoice: inv, onChange, readOnly = false, hourlyRate, fromWebsite, feeTemplates, labels, detailSets = [], intake = null }: EditorProps) {
   const totals = calculateTotals(inv);
   const aiIds = new Set(geOf(inv).ai?.lineIds ?? []);
   const dis = { disabled: readOnly };
@@ -114,9 +136,10 @@ export function InvoiceEditor({ invoice: inv, onChange, readOnly = false, hourly
       </Card>
 
       {inv.details ? (
-        // The user's own detail fields (Settings → Invoices → Detail fields). Nothing here unless they defined some.
-        inv.details.fields.length > 0 && (
-          <Card title={inv.details.title || 'Details'} icon={<Car className="w-4 h-4 text-[#7c3bed]" />}>
+        // The user's own detail fields (Settings → Invoices → Detail field presets). The card shows when it has fields or presets exist to choose from.
+        (inv.details.fields.length > 0 || (detailSets.length > 0 && !readOnly)) && (
+          <Card title={inv.details.title || 'Details'} icon={<Car className="w-4 h-4 text-[#7c3bed]" />} right={readOnly ? undefined : <DetailSetPicker invoice={inv} sets={detailSets} intake={intake} onChange={onChange} />}>
+            {inv.details.fields.length === 0 && <p className="text-xs text-gray-500">No detail fields on this document yet. Choose a preset above.</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {inv.details.fields.map(f => (
                 <div key={f.key}>
@@ -126,7 +149,7 @@ export function InvoiceEditor({ invoice: inv, onChange, readOnly = false, hourly
             </div>
           </Card>)
       ) : (
-        <Card title="Vehicle Details" icon={<Car className="w-4 h-4 text-[#7c3bed]" />}>
+        <Card title="Vehicle Details" icon={<Car className="w-4 h-4 text-[#7c3bed]" />} right={readOnly ? undefined : <DetailSetPicker invoice={inv} sets={detailSets} intake={intake} onChange={onChange} />}>
           <div className="grid grid-cols-3 gap-3 mb-3">
             <Field label="Year"><TextIn {...dis} value={inv.vehicle.year} onChange={v => onChange(set('vehicle', { year: v }))} /></Field>
             <Field label="Make"><TextIn {...dis} value={inv.vehicle.make} onChange={v => onChange(set('vehicle', { make: v }))} /></Field>

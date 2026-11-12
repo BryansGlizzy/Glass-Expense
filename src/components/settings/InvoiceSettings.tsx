@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Copy, Download, Plus, Trash2, Upload, X } from 'lucide-react';
-import { normalizeSettings, effectiveRates, newFeeId, slugKey, FIELD_PRESETS, PAYMENT_METHOD_KEYS, DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT, type FeeTemplate, type FieldDef, type InvoicingSettings } from '../../invoice/settings';
+import { normalizeSettings, effectiveRates, newFeeId, newSetId, slugKey, matchCodes, FIELD_PRESETS, MAX_DETAIL_SETS, PAYMENT_METHOD_KEYS, DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT, type DetailSet, type FeeTemplate, type FieldDef, type InvoicingSettings } from '../../invoice/settings';
 import { FEE_KINDS, FIELD_TYPES, type FeeKind, type FieldType } from '../../invoice/types';
 import { automotiveStarter, normalizePackage, normalizePackages, packagesFromServices, PACKAGE_LIMITS, type ServicePackage } from '../../invoice/packages';
 import { payOptions } from '../../invoice/paylinks';
@@ -67,7 +67,7 @@ export default function InvoiceSettings() {
       </Card>
 
       <FeeBuilder fees={s.fees} onChange={fees => setS(cur => (cur ? { ...cur, fees } : cur))} />
-      <FieldBuilder details={s.details} onChange={details => setS(cur => (cur ? { ...cur, details } : cur))} />
+      <DetailSetsBuilder sets={s.detailSets} onChange={detailSets => setS(cur => (cur ? { ...cur, detailSets } : cur))} onSave={save} saving={saving} />
 
       <Card title="Sales tax">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -219,24 +219,59 @@ function FeeBuilder({ fees, onChange }: { fees: FeeTemplate[]; onChange: (f: Fee
   );
 }
 
-/** The detail fields on your documents (a vehicle for a mechanic, an address for a plumber, an event for a photographer…). Empty = none. */
-function FieldBuilder({ details, onChange }: { details: InvoicingSettings['details']; onChange: (d: InvoicingSettings['details']) => void }) {
-  const upd = (i: number, patch: Partial<FieldDef>) => onChange({ ...details, fields: details.fields.map((f, k) => (k === i ? { ...f, ...patch } : f)) });
-  const move = (i: number, d: number) => { const j = i + d; if (j < 0 || j >= details.fields.length) return; const c = [...details.fields]; [c[i], c[j]] = [c[j], c[i]]; onChange({ ...details, fields: c }); };
+/**
+ * Detail-field presets: any number of named sets (Automotive, HVAC, Event…), each with its own box title, fields and the job code(s) that
+ * select it automatically. A new document gets the set matching its job number; any document can switch sets from its editor.
+ */
+function DetailSetsBuilder({ sets, onChange, onSave, saving }: { sets: DetailSet[]; onChange: (s: DetailSet[]) => void; onSave: () => void; saving: boolean }) {
+  const [selected, setSelected] = useState<string | null>(sets[0]?.id ?? null);
+  const sel = sets.find(x => x.id === selected) ?? sets[0] ?? null;
+  const patch = (p: Partial<DetailSet>) => sel && onChange(sets.map(x => (x.id === sel.id ? { ...x, ...p } : x)));
+  const fields = sel?.fields ?? [];
+  const setFields = (f: FieldDef[]) => patch({ fields: f });
+  const upd = (i: number, p: Partial<FieldDef>) => setFields(fields.map((f, k) => (k === i ? { ...f, ...p } : f)));
+  const move = (i: number, d: number) => { const j = i + d; if (j < 0 || j >= fields.length) return; const c = [...fields]; [c[i], c[j]] = [c[j], c[i]]; setFields(c); };
+  const add = (set: Omit<DetailSet, 'id'>) => { const n: DetailSet = { ...set, id: newSetId() }; onChange([...sets, n]); setSelected(n.id); };
+  const codesOf = (x: DetailSet) => matchCodes(x.match);
+  const clash = (code: string) => sets.filter(x => codesOf(x).includes(code)).length > 1;
+  const clashes = sel ? codesOf(sel).filter(clash) : [];
+  const fallbacks = sets.filter(x => codesOf(x).length === 0);
   return (
-    <Card title="Detail fields" right={<span className="flex gap-1.5 flex-wrap"><Btn size="sm" onClick={() => onChange({ title: FIELD_PRESETS.automotive.title, fields: FIELD_PRESETS.automotive.fields.map(f => ({ ...f })) })}>Use automotive set</Btn>
-      <Btn size="sm" disabled={details.fields.length >= 30} onClick={() => onChange({ ...details, fields: [...details.fields, { key: `field_${details.fields.length + 1}`, label: 'New field', type: 'text', default: '' }] })}><Plus className="w-3.5 h-3.5" />Add field</Btn></span>}>
-      <p className="text-xs text-gray-400 mb-3">Design the information box on your estimates and invoices for <b>your</b> kind of work. Leave it empty for none. Each field has a <b>variable name</b>: when your website or an agent posts <code>fields.&#123;name&#125;</code> (for example <code>fields.venue</code>) the field fills itself in. The automotive set uses the same names a mechanic's website posts as <code>vehicle</code> (year, make, model, vin, engine).</p>
-      <Field label="Box title"><TextIn value={details.title} onChange={v => onChange({ ...details, title: v })} placeholder="Vehicle Details, Job Site, Event…" /></Field>
-      {details.fields.length === 0 && <p className="text-sm text-gray-500 py-3">No detail fields: documents show customer details only.</p>}
-      <div className="space-y-2 mt-3">{details.fields.map((f, i) => (
-        <div key={i} className="grid grid-cols-12 gap-2 items-end">
-          <div className="col-span-12 sm:col-span-3"><Field label={i === 0 ? 'Label' : ''}><TextIn value={f.label} onChange={v => upd(i, { label: v, ...(f.key.startsWith('field_') || f.key === slugKey(f.label) ? { key: slugKey(v) || f.key } : {}) })} /></Field></div>
-          <div className="col-span-6 sm:col-span-3"><Field label={i === 0 ? 'Variable name' : ''}><TextIn className="font-mono text-xs" value={f.key} onChange={v => upd(i, { key: v.toLowerCase().replace(/[^a-z0-9_]/g, '') })} /></Field></div>
-          <div className="col-span-6 sm:col-span-2"><Field label={i === 0 ? 'Type' : ''}><select className={inputCls} value={f.type} onChange={e => upd(i, { type: e.target.value as FieldType })}>{FIELD_TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}</select></Field></div>
-          <div className="col-span-8 sm:col-span-3"><Field label={i === 0 ? 'Default value' : ''}><TextIn value={f.default} onChange={v => upd(i, { default: v })} /></Field></div>
-          <span className="col-span-4 sm:col-span-1 flex justify-end gap-1 pb-2 text-gray-500"><button aria-label="Move up" className="hover:text-white" onClick={() => move(i, -1)}><ChevronUp className="w-4 h-4" /></button><button aria-label="Move down" className="hover:text-white" onClick={() => move(i, 1)}><ChevronDown className="w-4 h-4" /></button><button aria-label={`Delete ${f.label}`} className="hover:text-red-400" onClick={() => onChange({ ...details, fields: details.fields.filter((_, k) => k !== i) })}><Trash2 className="w-4 h-4" /></button></span>
-        </div>))}</div>
+    <Card title={`Detail field presets (${sets.length})`} right={<span className="flex gap-1.5 flex-wrap">
+      <Btn size="sm" disabled={sets.length >= MAX_DETAIL_SETS} onClick={() => add({ name: 'New preset', title: 'Job Details', match: '', fields: [] })}><Plus className="w-3.5 h-3.5" />New preset</Btn>
+      <Btn size="sm" disabled={sets.length >= MAX_DETAIL_SETS} onClick={() => add({ name: 'Automotive', title: FIELD_PRESETS.automotive.title, match: 'AUTO', fields: FIELD_PRESETS.automotive.fields.map(f => ({ ...f })) })}>Add automotive example</Btn></span>}>
+      <p className="text-xs text-gray-400 mb-3">A preset is the information box for one kind of work (a vehicle for automotive, equipment for HVAC, a venue for events…). Make as many as you need. Give each the <b>job code</b> it belongs to: a job whose invoice number starts with that code (<code>AUTO</code> for <code>AUTO-A00001</code>) gets that preset on its estimates and invoices automatically, and you can switch presets on any document from its editor. Each field has a <b>variable name</b>: when your website or an agent posts <code>fields.&#123;name&#125;</code> (for example <code>fields.venue</code>) the field fills itself in. The automotive example uses the names a mechanic's website posts as <code>vehicle</code> (year, make, model, vin, engine).</p>
+      {sets.length === 0 && <p className="text-sm text-gray-500 py-3">No presets yet: documents show customer details only. Add one above.</p>}
+      {sets.length > 0 && sel && (
+        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4">
+          <ul className="space-y-1 max-h-80 overflow-y-auto">{sets.map(x => (
+            <li key={x.id} className={`flex items-center gap-1 rounded-xl border px-2 py-1.5 ${x.id === sel.id ? 'border-[#7c3bed]/60 bg-[#7c3bed]/10' : 'border-white/5 bg-white/5'}`}>
+              <button className="flex-1 min-w-0 text-left" onClick={() => setSelected(x.id)}><span className="block text-sm text-gray-100 truncate">{x.name}</span><span className="block text-[10px] text-gray-500 truncate">{codesOf(x).length ? `Job code: ${codesOf(x).join(', ')}` : 'Fallback (any other job)'} · {x.fields.length} field{x.fields.length === 1 ? '' : 's'}</span></button>
+              <button aria-label={`Duplicate ${x.name}`} className="text-gray-400 hover:text-white" disabled={sets.length >= MAX_DETAIL_SETS} onClick={() => { const n: DetailSet = { ...x, id: newSetId(), name: `${x.name} (copy)`.slice(0, 60), match: '', fields: x.fields.map(f => ({ ...f })) }; onChange([...sets, n]); setSelected(n.id); }}><Copy className="w-3.5 h-3.5" /></button>
+              <button aria-label={`Delete ${x.name}`} className="text-gray-400 hover:text-red-400" onClick={() => { if (window.confirm(`Delete the preset “${x.name}”? Documents that already use it keep their fields.`)) { const rest = sets.filter(y => y.id !== x.id); onChange(rest); setSelected(rest[0]?.id ?? null); } }}><Trash2 className="w-3.5 h-3.5" /></button></li>))}</ul>
+          <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Field label="Preset name" hint="Shown in the picker"><TextIn value={sel.name} maxLength={60} onChange={v => patch({ name: v })} /></Field>
+              <Field label="Box title on the invoice"><TextIn value={sel.title} maxLength={60} onChange={v => patch({ title: v })} placeholder="Vehicle Details, Job Site, Event…" /></Field>
+              <Field label="Job code(s)" hint="e.g. AUTO. Several: AUTO, CAR. Empty = fallback"><TextIn className="font-mono uppercase" value={sel.match} maxLength={100} onChange={v => patch({ match: v.toUpperCase().replace(/[^A-Z0-9_,;\s-]/g, '') })} placeholder="AUTO" /></Field>
+            </div>
+            {clashes.length > 0 && <p className="text-xs text-amber-300 mt-2">{clashes.join(', ')} is also used by another preset; the first one in the list wins. Give each job code to one preset.</p>}
+            {codesOf(sel).length === 0 && fallbacks.length > 1 && <p className="text-xs text-amber-300 mt-2">More than one preset has no job code; only the first is used as the fallback.</p>}
+            {fields.length === 0 && <p className="text-sm text-gray-500 py-3">This preset has no fields yet.</p>}
+            <div className="space-y-2 mt-3">{fields.map((f, i) => (
+              <div key={i} className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-12 sm:col-span-3"><Field label={i === 0 ? 'Label' : ''}><TextIn value={f.label} onChange={v => upd(i, { label: v, ...(f.key.startsWith('field_') || f.key === slugKey(f.label) ? { key: slugKey(v) || f.key } : {}) })} /></Field></div>
+                <div className="col-span-6 sm:col-span-3"><Field label={i === 0 ? 'Variable name' : ''}><TextIn className="font-mono text-xs" value={f.key} onChange={v => upd(i, { key: v.toLowerCase().replace(/[^a-z0-9_]/g, '') })} /></Field></div>
+                <div className="col-span-6 sm:col-span-2"><Field label={i === 0 ? 'Type' : ''}><select className={inputCls} value={f.type} onChange={e => upd(i, { type: e.target.value as FieldType })}>{FIELD_TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}</select></Field></div>
+                <div className="col-span-8 sm:col-span-3"><Field label={i === 0 ? 'Default value' : ''}><TextIn value={f.default} onChange={v => upd(i, { default: v })} /></Field></div>
+                <span className="col-span-4 sm:col-span-1 flex justify-end gap-1 pb-2 text-gray-500"><button aria-label="Move up" className="hover:text-white" onClick={() => move(i, -1)}><ChevronUp className="w-4 h-4" /></button><button aria-label="Move down" className="hover:text-white" onClick={() => move(i, 1)}><ChevronDown className="w-4 h-4" /></button><button aria-label={`Delete ${f.label}`} className="hover:text-red-400" onClick={() => setFields(fields.filter((_, k) => k !== i))}><Trash2 className="w-4 h-4" /></button></span>
+              </div>))}</div>
+            <div className="flex items-center justify-between mt-3">
+              <Btn size="sm" disabled={fields.length >= 30} onClick={() => setFields([...fields, { key: `field_${fields.length + 1}`, label: 'New field', type: 'text', default: '' }])}><Plus className="w-3.5 h-3.5" />Add field</Btn>
+              <Btn size="sm" variant="primary" disabled={saving} onClick={onSave}>{saving ? 'Saving…' : 'Save invoice settings'}</Btn>
+            </div>
+          </div>
+        </div>)}
     </Card>
   );
 }

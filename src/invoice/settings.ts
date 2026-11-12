@@ -23,6 +23,13 @@ export interface FeeTemplate { id: string; label: string; kind: FeeKind; value: 
 /** A detail field the user defined. `key` is the API variable that fills it (`fields.<key>` in an agent request). */
 export interface FieldDef { key: string; label: string; type: FieldType; default: string }
 
+/**
+ * A saved set of detail fields ("preset"): Automotive, HVAC, Event… `match` lists job codes (the part of an invoice number before the first
+ * dash, e.g. `AUTO` for AUTO-A00001, or a job's invoice tag) that use this set automatically. A set with no codes is the fallback for jobs
+ * that match no other set.
+ */
+export interface DetailSet { id: string; name: string; title: string; match: string; fields: FieldDef[] }
+
 export interface InvoicingSettings {
   schema: 2;
   /** `logo` is a small baseline JPEG data URL made from the user's upload (see logoUpload.ts); '' = none. */
@@ -36,7 +43,8 @@ export interface InvoicingSettings {
     websiteQuote: WebsiteQuote | null;
   };
   fees: FeeTemplate[];
-  details: { title: string; fields: FieldDef[] };
+  /** Any number of detail-field presets (≤ 20); see DetailSet. Replaces the former single `details` box (migrated on read). */
+  detailSets: DetailSet[];
   /** rate 0 = no sales tax (the default). `incomeMode` decides how a payment on a taxed invoice becomes an income entry. */
   tax: { rate: number; taxLabor: boolean; incomeMode: 'exclude' | 'include' };
   defaults: { estimateValidDays: number; dueDays: number; discountType: 'percent' | 'fixed'; discountValue: number; /** New documents use the opt-in hardened layout (real font metrics, wrapped lines, rounding per line). Pinned per invoice by meta.layout. */ layout2: boolean };
@@ -88,7 +96,7 @@ export function defaultSettings(): InvoicingSettings {
     numbering: { prefix: 'INV' },
     rates: { hourlyRate: 0, followWebsite: true, websiteQuote: null },
     fees: [],
-    details: { title: 'Job Details', fields: [] },
+    detailSets: [],
     tax: { rate: 0, taxLabor: false, incomeMode: 'exclude' },
     defaults: { estimateValidDays: 15, dueDays: 0, discountType: 'percent', discountValue: 0, layout2: false },
     terms: { customerNotes: '', estimateTerms: '', invoiceTerms: '', estimateSignature: '', invoiceSignature: '', ownPartsClause: '' },
@@ -96,6 +104,36 @@ export function defaultSettings(): InvoicingSettings {
     email: { enabled: false, replyTo: '', bccMe: false, subject: DEFAULT_EMAIL_SUBJECT, body: DEFAULT_EMAIL_BODY },
     automation: { autoDraft: true, requireVerification: false },
   };
+}
+
+export const MAX_DETAIL_SETS = 20;
+export const DEFAULT_DETAILS_TITLE = 'Job Details';
+
+let setSeq = 0;
+export const newSetId = () => `set-${Date.now().toString(36)}-${(++setSeq).toString(36)}`;
+
+/** The job codes of a set: upper-case, A-Z 0-9 _ -, separated by commas or spaces, de-duplicated, at most 10. */
+export function matchCodes(match: string | null | undefined): string[] {
+  const out: string[] = [];
+  for (const part of String(match ?? '').split(/[,;\s]+/)) {
+    const c = part.toUpperCase().replace(/[^A-Z0-9_-]/g, '').replace(/^-+|-+$/g, '').slice(0, 20);
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out.slice(0, 10);
+}
+
+/**
+ * The detail set a job uses. `candidates` are the invoice number (`AUTO-A00001`), the job's invoice number and its invoice tag; a code
+ * matches a candidate that equals it or starts with `CODE-` (so `AUTO` never matches `AUTOMOTIVE-1`). The longest matching code wins; a
+ * set with no codes is the fallback when nothing matches. Returns null when the user has no applicable set.
+ */
+export function detailSetFor(sets: readonly DetailSet[], candidates: ReadonlyArray<string | null | undefined>): DetailSet | null {
+  const cs = candidates.map(c => String(c ?? '').trim().toUpperCase()).filter(Boolean);
+  let best: DetailSet | null = null; let bestLen = 0;
+  for (const set of sets) for (const code of matchCodes(set.match)) {
+    if (code.length > bestLen && cs.some(c => c === code || c.startsWith(`${code}-`))) { best = set; bestLen = code.length; }
+  }
+  return best ?? sets.find(s => matchCodes(s.match).length === 0) ?? null;
 }
 
 let feeSeq = 0;
@@ -130,6 +168,25 @@ function normalizeFields(raw: unknown): FieldDef[] {
   return out;
 }
 
+function normalizeDetailSets(raw: unknown, legacy: Record<string, unknown>): DetailSet[] {
+  let list: unknown[];
+  if (Array.isArray(raw)) list = raw;
+  else {
+    // Settings saved before presets existed had ONE box (`details`); it becomes the fallback set so existing documents behave the same.
+    const fields = normalizeFields(legacy.fields);
+    list = fields.length ? [{ id: 'set-default', name: str(legacy.title, 60) || DEFAULT_DETAILS_TITLE, title: str(legacy.title, 60) || DEFAULT_DETAILS_TITLE, match: '', fields }] : [];
+  }
+  const seen = new Set<string>();
+  return list.slice(0, MAX_DETAIL_SETS).map((entry, n) => {
+    const o = isObj(entry) ? entry : {};
+    let id = typeof o.id === 'string' && /^[\w.:-]{1,64}$/.test(o.id) ? o.id : '';
+    if (!id || seen.has(id)) id = newSetId();
+    seen.add(id);
+    const title = str(o.title, 60).trim() || DEFAULT_DETAILS_TITLE;
+    return { id, name: str(o.name, 60).trim() || title || `Set ${n + 1}`, title, match: matchCodes(typeof o.match === 'string' ? o.match : '').join(', '), fields: normalizeFields(o.fields) };
+  });
+}
+
 /** The fees an older settings object (fixed travel / supplies / hazmat / misc fields) would have had, as user-defined fees. */
 function legacyFees(rates: Record<string, unknown>, labels: Record<string, unknown>): FeeTemplate[] {
   const out: FeeTemplate[] = [];
@@ -146,7 +203,7 @@ export function normalizeSettings(raw: unknown): InvoicingSettings {
   const d = defaultSettings();
   const r = isObj(raw) ? raw : {};
   const o = (k: string): Record<string, unknown> => (isObj(r[k]) ? (r[k] as Record<string, unknown>) : {});
-  const shop = o('shop'), rates = o('rates'), tax = o('tax'), def = o('defaults'), terms = o('terms'), email = o('email'), auto = o('automation'), pay = o('payments'), numbering = o('numbering'), details = o('details');
+  const shop = o('shop'), rates = o('rates'), tax = o('tax'), def = o('defaults'), terms = o('terms'), email = o('email'), auto = o('automation'), pay = o('payments'), numbering = o('numbering'), legacyDetails = o('details');
 
   const wq = isObj(rates.websiteQuote) ? rates.websiteQuote : null;
   const variables: Record<string, number> = {};
@@ -171,7 +228,7 @@ export function normalizeSettings(raw: unknown): InvoicingSettings {
       websiteQuote: wq ? { hourlyRate: wq.hourlyRate == null ? null : num(wq.hourlyRate), baseFee: wq.baseFee == null ? null : num(wq.baseFee), variables, at: str(wq.at, 40) } : null,
     },
     fees,
-    details: { title: str(details.title, 60, d.details.title) || d.details.title, fields: normalizeFields(details.fields) },
+    detailSets: normalizeDetailSets(r.detailSets, legacyDetails),
     tax: { rate: pct(tax.rate), taxLabor: bool(tax.taxLabor), incomeMode: tax.incomeMode === 'include' ? 'include' : 'exclude' },
     defaults: {
       estimateValidDays: days(def.estimateValidDays, d.defaults.estimateValidDays), dueDays: days(def.dueDays, d.defaults.dueDays),

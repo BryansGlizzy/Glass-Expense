@@ -26,7 +26,7 @@ export function HistoryDrawer({ records, jobTitles, currentId, onOpen, onDelete,
         <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-2">
           {shown.length === 0 && <p className="text-sm text-gray-500 text-center py-10">{records.length ? 'Nothing matches.' : 'No saved invoices yet. Build one and press Save.'}</p>}
           {shown.map(r => {
-            const i = r.invoice; const veh = [i.vehicle.year, i.vehicle.make, i.vehicle.model].filter(Boolean).join(' ');
+            const i = r.invoice; const veh = i.details ? i.details.fields.map(f => f.value.trim()).filter(Boolean).slice(0, 3).join(' ') : [i.vehicle.year, i.vehicle.make, i.vehicle.model].filter(Boolean).join(' ');
             return (
               <div key={r.id} className={`rounded-xl border p-3 ${r.id === currentId ? 'border-[#7c3bed]/60 bg-[#7c3bed]/10' : 'border-white/10 bg-white/5'}`}>
                 <div className="flex items-center justify-between gap-2"><span className="font-mono text-sm text-white truncate">{i.meta.invoiceNumber || '(no number)'}</span><span className="flex gap-1.5 items-center"><span className="text-[10px] uppercase text-gray-400">{i.meta.docType}</span><StatusBadge status={i.meta.status} docType={i.meta.docType} /></span></div>

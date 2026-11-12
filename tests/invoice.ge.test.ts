@@ -34,7 +34,7 @@ await t('settings: defaults are neutral (no tax, no fees, no legal text); garbag
   assert.equal(d.tax.rate, 0); assert.equal(d.rates.hourlyRate, 0); assert.equal(d.terms.invoiceTerms, ''); assert.equal(d.defaults.estimateValidDays, 15);
   for (const junk of [null, undefined, 5, 'x', [], { shop: 5, rates: [], tax: 'x', payments: null }, { rates: { hourlyRate: 1e99, shopSuppliesRate: 500, websiteQuote: { hourlyRate: -3, variables: { 'bad key!': 1, ok_key: '7' } } } }]) {
     const s = normalizeSettings(junk);
-    assert.equal(s.schema, 2); assert.ok(s.rates.hourlyRate <= 1e9 && Array.isArray(s.fees) && Array.isArray(s.details.fields)); assert.equal(typeof s.payments.paypal.label, 'string');
+    assert.equal(s.schema, 2); assert.ok(s.rates.hourlyRate <= 1e9 && Array.isArray(s.fees) && Array.isArray(s.detailSets)); assert.equal(typeof s.payments.paypal.label, 'string');
   }
   const q = normalizeSettings({ rates: { websiteQuote: { hourlyRate: -3, variables: { 'bad key!': 1, ok_key: '7' }, at: 'x' } } }).rates.websiteQuote!;
   assert.deepEqual([q.hourlyRate, q.variables], [0, { ok_key: 7 }]);
@@ -194,7 +194,9 @@ await t('pending steps: terms swap only when unedited; sparse agent documents ar
   assert.deepEqual([filled.shop.name, filled.shop.address, filled.shop.phone], ['Agent Typed', '1 Rd', '555'], 'fills blanks only');
 });
 await t('review checklist flags what a person should check; AI lines must be verified', () => {
-  assert.deepEqual(reviewChecklist(estimate()).filter(c => !c.ok).map(c => c.id), ['customer', 'vehicle'].filter(x => x !== 'customer'));
+  assert.deepEqual(reviewChecklist(estimate()).filter(c => !c.ok).map(c => c.id), [], 'no detail preset applied: nothing hard-coded to a vehicle is asked for');
+  const withBox = { ...estimate(), details: { title: 'Vehicle Details', fields: [{ key: 'make', label: 'Make', type: 'text' as const, value: '' }] } };
+  assert.deepEqual(reviewChecklist(withBox).filter(c => !c.ok).map(c => [c.id, c.label]), [['details', 'Vehicle Details']], 'the row is named after the box on the document');
   const empty = reviewChecklist(createEmptyInvoice({}, NOW)); assert.ok(empty.filter(c => !c.ok).length >= 4);
   const ai = withGe(estimate(), { ai: { lineIds: ['l1'], verified: false } });
   assert.equal(reviewChecklist(ai).find(c => c.id === 'ai')!.ok, false); assert.equal(reviewChecklist(withGe(ai, { ai: { lineIds: ['l1'], verified: true } })).find(c => c.id === 'ai')!.ok, true);
